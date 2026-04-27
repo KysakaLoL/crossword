@@ -656,6 +656,7 @@
                     let snakeTargetLength = snakeCurrentLength;
                     let snakeApples = [];
                     let activeAppleIndex = 0;
+                    let snakeTongue = null;
 
                     let tileMap = new Map();
                     let fixedLettersMap = new Map();
@@ -844,31 +845,52 @@
                         skull.castShadow = !isMobile;
                         snakeHead.add(skull);
 
+                        const snout = new THREE.Mesh(
+                            new THREE.CylinderGeometry(0.18, 0.34, 0.88, 8),
+                            new THREE.MeshStandardMaterial({ color: 0x0b8a43, roughness: 0.2, metalness: 0.28 })
+                        );
+                        snout.rotation.z = Math.PI / 2;
+                        snout.rotation.x = 0.08;
+                        snout.position.set(0.54, -0.01, 0);
+                        snakeHead.add(snout);
+
                         const jaw = new THREE.Mesh(
-                            new THREE.BoxGeometry(0.92, 0.22, 0.86),
+                            new THREE.BoxGeometry(0.82, 0.18, 0.72),
                             new THREE.MeshStandardMaterial({ color: 0x00733a, roughness: 0.22, metalness: 0.35 })
                         );
-                        jaw.position.set(0.08, -0.18, -0.24);
-                        jaw.rotation.z = -0.06;
+                        jaw.position.set(0.46, -0.18, 0);
+                        jaw.rotation.z = 0.02;
                         snakeHead.add(jaw);
 
                         const leftEye = new THREE.Mesh(
                             new THREE.TetrahedronGeometry(0.13),
                             new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 4.4, roughness: 0.15 })
                         );
-                        leftEye.position.set(-0.28, 0.16, -0.38);
+                        leftEye.position.set(0.26, 0.16, -0.28);
                         const rightEye = leftEye.clone();
-                        rightEye.position.x = 0.22;
+                        rightEye.position.x = 0.26;
+                        rightEye.position.z = 0.28;
                         snakeHead.add(leftEye);
                         snakeHead.add(rightEye);
 
-                        const nose = new THREE.Mesh(
-                            new THREE.ConeGeometry(0.08, 0.22, 4),
-                            new THREE.MeshStandardMaterial({ color: 0x004422, roughness: 0.4, metalness: 0.2 })
+                        const nostrilMat = new THREE.MeshStandardMaterial({ color: 0x072f19, roughness: 0.5, metalness: 0.15 });
+                        const leftNostril = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.045, 8, 8),
+                            nostrilMat
                         );
-                        nose.position.set(0.12, 0.03, -0.78);
-                        nose.rotation.x = -Math.PI / 2;
-                        snakeHead.add(nose);
+                        leftNostril.scale.set(1, 0.6, 1);
+                        leftNostril.position.set(0.9, 0.04, -0.12);
+                        const rightNostril = leftNostril.clone();
+                        rightNostril.position.z = 0.12;
+                        snakeHead.add(leftNostril);
+                        snakeHead.add(rightNostril);
+
+                        snakeTongue = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.36, 0.02, 0.06),
+                            new THREE.MeshStandardMaterial({ color: 0xff5a73, emissive: 0x4a0d18, emissiveIntensity: 0.45 })
+                        );
+                        snakeTongue.position.set(0.98, -0.1, 0);
+                        snakeHead.add(snakeTongue);
 
                         scene.add(snakeHead);
 
@@ -1172,6 +1194,14 @@
                             controls.enableRotate = true;
                             controls.enablePan = true;
                             controls.enableZoom = true;
+                            controls.rotateSpeed = 0.92;
+                            controls.panSpeed = 1.1;
+                            controls.zoomSpeed = 1.05;
+                            controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+                            controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+                            controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+                            controls.touches.ONE = THREE.TOUCH.ROTATE;
+                            controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
                         });
                         document.getElementById('start-local-btn').addEventListener('click', () => {
                             startOverlay.style.display = 'none';
@@ -1193,7 +1223,11 @@
                         answerInput.addEventListener('input', updateTypedPreview);
                         fileSelector.addEventListener('change', loadCrosswordFromFile);
 
-                        renderer.domElement.addEventListener('click', onCanvasClick);
+                        renderer.domElement.addEventListener('pointerdown', onCanvasPointerDown, { passive: true });
+                        renderer.domElement.addEventListener('pointermove', onCanvasPointerMove, { passive: true });
+                        renderer.domElement.addEventListener('pointerup', onCanvasPointerUp, { passive: true });
+                        renderer.domElement.addEventListener('pointercancel', onCanvasPointerCancel, { passive: true });
+                        renderer.domElement.addEventListener('pointerleave', onCanvasPointerCancel, { passive: true });
                         window.addEventListener('resize', onResize);
                         window.addEventListener('keydown', (event) => {
                             if (event.key === 'Escape') closeQuestion();
@@ -1753,9 +1787,32 @@
                         return !!(target && target.closest && target.closest('#teacher-ui, #question-box, #start-overlay'));
                     }
 
-                    function onCanvasClick(event) {
+                    function onCanvasPointerDown(event) {
                         if (isUiEventTarget(event.target)) return;
+                        pointerDownPos = { x: event.clientX, y: event.clientY };
+                        pointerDragged = false;
+                    }
+
+                    function onCanvasPointerMove(event) {
+                        if (!pointerDownPos) return;
+                        if (Math.abs(event.clientX - pointerDownPos.x) > 8 || Math.abs(event.clientY - pointerDownPos.y) > 8) {
+                            pointerDragged = true;
+                        }
+                    }
+
+                    function onCanvasPointerUp(event) {
+                        if (isUiEventTarget(event.target)) return;
+                        if (!pointerDownPos) return;
+                        const wasDragged = pointerDragged;
+                        pointerDownPos = null;
+                        pointerDragged = false;
+                        if (wasDragged) return;
                         onSceneClick(event);
+                    }
+
+                    function onCanvasPointerCancel() {
+                        pointerDownPos = null;
+                        pointerDragged = false;
                     }
 
                     function onSceneClick(event) {
@@ -1993,7 +2050,13 @@
                     function renderSnake() {
                         const headPos = snakePathPoints[0] || gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
                         snakeHead.position.copy(headPos);
-                        snakeHead.rotation.y = snakeAngle;
+                        snakeHead.rotation.y = snakeAngle + Math.PI;
+
+                        if (snakeTongue) {
+                            const tonguePulse = 0.72 + Math.max(0, Math.sin(snakeOrbitClock * 5.4)) * 0.8;
+                            snakeTongue.scale.x = tonguePulse;
+                            snakeTongue.scale.z = 0.72 + Math.max(0, Math.sin(snakeOrbitClock * 10.8)) * 0.35;
+                        }
 
                         let count = 0;
                         const visibleSegments = Math.max(8, Math.min(SNAKE_SEGMENTS - 2, Math.floor(snakeCurrentLength)));
