@@ -460,8 +460,8 @@
 
                 const TILE_SIZE = 2;
                 const SNAKE_SPEED = 4.1;
-                const SNAKE_SEGMENTS = isMobile ? 66 : 86;
-                const SNAKE_POINT_STEP = 0.24;
+                const SNAKE_SEGMENTS = isMobile ? 58 : 68;
+                const SNAKE_POINT_STEP = 0.16;
                 const MAX_WORDS = 100;
 
                 const teacherRoot = document.getElementById('teacher-root');
@@ -638,6 +638,7 @@
                     let gridHelper;
                     let pointLight;
                     let sphere;
+                    let appleGroup;
                     let snakeHead;
                     let snakeBody;
                     let snakeDummy;
@@ -651,6 +652,10 @@
                     let snakeNextGrid = { x: -13, z: 14 };
                     let snakeProgress = 0;
                     let lastHeadPoint = new THREE.Vector3();
+                    let snakeCurrentLength = isMobile ? 18 : 24;
+                    let snakeTargetLength = snakeCurrentLength;
+                    let snakeApples = [];
+                    let activeAppleIndex = 0;
 
                     let tileMap = new Map();
                     let fixedLettersMap = new Map();
@@ -735,14 +740,14 @@
                         controls.enableRotate = true;
                         controls.enablePan = true;
                         controls.enableZoom = true;
-                        controls.rotateSpeed = 0.82;
-                        controls.panSpeed = 1.2;
+                        controls.rotateSpeed = 0.92;
+                        controls.panSpeed = 1.1;
                         controls.zoomSpeed = 1.05;
-                        controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+                        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
                         controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-                        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-                        controls.touches.ONE = THREE.TOUCH.PAN;
-                        controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
+                        controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+                        controls.touches.ONE = THREE.TOUCH.ROTATE;
+                        controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
                         controls.addEventListener('start', () => {
                             cameraAssist = 0;
                             cameraMode = 'free';
@@ -778,7 +783,11 @@
                         scene.add(sphere);
                         sphere.visible = false;
 
+                        appleGroup = new THREE.Group();
+                        scene.add(appleGroup);
+
                         buildSnakeVisuals();
+                        buildSnakeApples();
                     }
 
                     function buildSnakeVisuals() {
@@ -801,29 +810,69 @@
 
                         snakeHead = new THREE.Group();
 
-                        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.7, 18, 18), headMat);
-                        skull.scale.set(1.12, 0.82, 1.58);
+                        const headShape = new THREE.Shape();
+                        const topPoints = [
+                            [0, 0],
+                            [1, 1],
+                            [2, 1],
+                            [1, 0],
+                            [2, -1],
+                            [1, -1],
+                            [0, 0]
+                        ];
+                        topPoints.forEach((point, index) => {
+                            const px = (point[0] - 1) * 0.55;
+                            const py = point[1] * 0.42;
+                            if (index === 0) headShape.moveTo(px, py);
+                            else headShape.lineTo(px, py);
+                        });
+
+                        const headGeo = new THREE.ExtrudeGeometry(headShape, {
+                            depth: 0.72,
+                            bevelEnabled: true,
+                            bevelSize: 0.08,
+                            bevelThickness: 0.08,
+                            bevelSegments: 2,
+                            curveSegments: 10
+                        });
+                        headGeo.center();
+                        headGeo.rotateX(-Math.PI / 2);
+                        headGeo.rotateY(-Math.PI / 2);
+
+                        const skull = new THREE.Mesh(headGeo, headMat);
+                        skull.scale.set(1.18, 1.06, 1.28);
+                        skull.castShadow = !isMobile;
                         snakeHead.add(skull);
 
-                        const snout = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 14), headMat);
-                        snout.scale.set(1.12, 0.62, 1.18);
-                        snout.position.set(0, -0.02, -0.88);
-                        snakeHead.add(snout);
+                        const jaw = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.92, 0.22, 0.86),
+                            new THREE.MeshStandardMaterial({ color: 0x00733a, roughness: 0.22, metalness: 0.35 })
+                        );
+                        jaw.position.set(0.08, -0.18, -0.24);
+                        jaw.rotation.z = -0.06;
+                        snakeHead.add(jaw);
 
                         const leftEye = new THREE.Mesh(
-                            new THREE.TetrahedronGeometry(0.12),
-                            new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 3.8, roughness: 0.15 })
+                            new THREE.TetrahedronGeometry(0.13),
+                            new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 4.4, roughness: 0.15 })
                         );
-                        leftEye.position.set(-0.24, 0.12, -0.52);
+                        leftEye.position.set(-0.28, 0.16, -0.38);
                         const rightEye = leftEye.clone();
-                        rightEye.position.x = 0.24;
+                        rightEye.position.x = 0.22;
                         snakeHead.add(leftEye);
                         snakeHead.add(rightEye);
 
+                        const nose = new THREE.Mesh(
+                            new THREE.ConeGeometry(0.08, 0.22, 4),
+                            new THREE.MeshStandardMaterial({ color: 0x004422, roughness: 0.4, metalness: 0.2 })
+                        );
+                        nose.position.set(0.12, 0.03, -0.78);
+                        nose.rotation.x = -Math.PI / 2;
+                        snakeHead.add(nose);
+
                         scene.add(snakeHead);
 
-                        const segmentGeo = new THREE.ConeGeometry(0.42, 0.92, 4);
-                        segmentGeo.rotateX(Math.PI / 2);
+                        const segmentGeo = new THREE.SphereGeometry(0.52, 16, 14);
                         snakeBody = new THREE.InstancedMesh(segmentGeo, bodyMat, SNAKE_SEGMENTS);
                         snakeBody.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
                         scene.add(snakeBody);
@@ -834,6 +883,95 @@
                             snakePathPoints.push(startPos.clone());
                         }
                         lastHeadPoint.copy(startPos);
+                    }
+
+                    function buildSnakeApples() {
+                        snakeApples = [];
+                        appleGroup.clear();
+
+                        for (let i = 0; i < 3; i++) {
+                            const apple = new THREE.Group();
+                            const fruit = new THREE.Mesh(
+                                new THREE.SphereGeometry(0.82, 18, 18),
+                                new THREE.MeshStandardMaterial({ color: 0xd92b2b, emissive: 0x7f1111, emissiveIntensity: 0.35, roughness: 0.26 })
+                            );
+                            const leaf = new THREE.Mesh(
+                                new THREE.SphereGeometry(0.18, 12, 12),
+                                new THREE.MeshStandardMaterial({ color: 0x2fd06e, emissive: 0x165d35, emissiveIntensity: 0.3 })
+                            );
+                            leaf.scale.set(1.35, 0.45, 0.85);
+                            leaf.position.set(0.22, 0.68, -0.06);
+                            leaf.rotation.z = 0.6;
+
+                            const stem = new THREE.Mesh(
+                                new THREE.CylinderGeometry(0.05, 0.07, 0.34, 8),
+                                new THREE.MeshStandardMaterial({ color: 0x6b3f18, roughness: 0.7 })
+                            );
+                            stem.position.y = 0.58;
+
+                            apple.add(fruit);
+                            apple.add(leaf);
+                            apple.add(stem);
+                            scene.add(apple);
+                            appleGroup.add(apple);
+                            snakeApples.push({ mesh: apple, angle: 0, radius: 0, bob: Math.random() * Math.PI * 2 });
+                        }
+
+                        respawnSnakeApples();
+                    }
+
+                    function respawnSnakeApples() {
+                        if (!snakeApples.length) return;
+
+                        const center = getLayoutCenterWorld();
+                        const span = getLayoutSpanWorld() || 24;
+                        const baseRadius = Math.max(16, span * 0.72 + 8);
+
+                        snakeApples.forEach((apple, index) => {
+                            const angle = snakeOrbitAngle + index * (Math.PI * 2 / snakeApples.length) + (Math.random() * 0.8 - 0.4);
+                            const radius = baseRadius + 3 + Math.random() * 5;
+                            apple.angle = angle;
+                            apple.radius = radius;
+                            apple.mesh.position.set(
+                                center.x + Math.cos(angle) * radius,
+                                1.18,
+                                center.z + Math.sin(angle) * radius
+                            );
+                            apple.mesh.scale.setScalar(index === activeAppleIndex ? 1.16 : 1);
+                        });
+                    }
+
+                    function updateSnakeApples(delta) {
+                        if (!snakeApples.length) return;
+
+                        const center = getLayoutCenterWorld();
+                        snakeApples.forEach((apple, index) => {
+                            apple.bob += delta * 2;
+                            apple.mesh.position.x = center.x + Math.cos(apple.angle) * apple.radius;
+                            apple.mesh.position.z = center.z + Math.sin(apple.angle) * apple.radius;
+                            apple.mesh.position.y = 1.12 + Math.sin(apple.bob) * 0.18;
+                            const targetScale = index === activeAppleIndex ? 1.18 : 0.96;
+                            apple.mesh.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+                            apple.mesh.rotation.y += delta * 0.7;
+                        });
+                    }
+
+                    function consumeSnakeApple(index) {
+                        const apple = snakeApples[index];
+                        if (!apple) return;
+
+                        snakeTargetLength = Math.min(SNAKE_SEGMENTS - 2, snakeTargetLength + 1.2);
+                        const center = getLayoutCenterWorld();
+                        const span = getLayoutSpanWorld() || 24;
+                        const baseRadius = Math.max(16, span * 0.74 + 8);
+                        apple.angle = snakeOrbitAngle + Math.PI * 0.7 + Math.random() * 1.2;
+                        apple.radius = baseRadius + 4 + Math.random() * 5;
+                        apple.mesh.position.set(
+                            center.x + Math.cos(apple.angle) * apple.radius,
+                            1.18,
+                            center.z + Math.sin(apple.angle) * apple.radius
+                        );
+                        activeAppleIndex = (index + 1) % snakeApples.length;
                     }
 
                     function initNetworking() {
@@ -1055,9 +1193,7 @@
                         answerInput.addEventListener('input', updateTypedPreview);
                         fileSelector.addEventListener('change', loadCrosswordFromFile);
 
-                        window.addEventListener('pointerdown', onPointerDown, { passive: true });
-                        window.addEventListener('pointermove', onPointerMove, { passive: true });
-                        window.addEventListener('pointerup', onPointerUp, { passive: true });
+                        renderer.domElement.addEventListener('click', onCanvasClick);
                         window.addEventListener('resize', onResize);
                         window.addEventListener('keydown', (event) => {
                             if (event.key === 'Escape') closeQuestion();
@@ -1142,6 +1278,11 @@
                         gamePhase = 'playing';
                         finalEatTargets = [];
                         finalWinners = [];
+                        snakeCurrentLength = isMobile ? 18 : 24;
+                        snakeTargetLength = snakeCurrentLength;
+                        activeAppleIndex = 0;
+                        if (appleGroup) appleGroup.visible = true;
+                        respawnSnakeApples();
                     }
 
                     function buildLayout() {
@@ -1612,26 +1753,8 @@
                         return !!(target && target.closest && target.closest('#teacher-ui, #question-box, #start-overlay'));
                     }
 
-                    function onPointerDown(event) {
+                    function onCanvasClick(event) {
                         if (isUiEventTarget(event.target)) return;
-                        pointerDownPos = { x: event.clientX, y: event.clientY };
-                        pointerDragged = false;
-                    }
-
-                    function onPointerMove(event) {
-                        if (!pointerDownPos) return;
-                        if (Math.abs(event.clientX - pointerDownPos.x) > 6 || Math.abs(event.clientY - pointerDownPos.y) > 6) {
-                            pointerDragged = true;
-                        }
-                    }
-
-                    function onPointerUp(event) {
-                        if (isUiEventTarget(event.target)) return;
-                        if (!pointerDownPos) return;
-                        const wasDragged = pointerDragged;
-                        pointerDownPos = null;
-                        pointerDragged = false;
-                        if (wasDragged) return;
                         onSceneClick(event);
                     }
 
@@ -1662,7 +1785,9 @@
                         const delta = Math.min(0.05, (currentTime - (animate.lastTime || currentTime)) / 1000);
                         animate.lastTime = currentTime;
 
+                        snakeCurrentLength += (snakeTargetLength - snakeCurrentLength) * Math.min(1, delta * 0.9);
                         updateSnake(delta);
+                        updateSnakeApples(delta);
                         renderSnake();
 
                         if (sphere.visible) sphere.position.lerp(targetSpherePos, 0.12);
@@ -1701,23 +1826,35 @@
 
                     function updateSnakeOrbit(delta) {
                         snakeOrbitClock += delta;
-                        snakeOrbitAngle += delta * 0.62;
+                        snakeOrbitAngle += delta * 0.52;
 
                         const center = getLayoutCenterWorld();
                         const span = getLayoutSpanWorld();
                         const baseRadius = Math.max(14, span * 0.62 + 7);
-                        const appleVector = targetSpherePos.clone().sub(center).setY(0);
-                        const appleAngle = appleVector.lengthSq() > 0.0001 ? Math.atan2(appleVector.z, appleVector.x) : snakeOrbitAngle;
-                        const angleDiff = normalizeAngle(snakeOrbitAngle - appleAngle);
-                        const behindAppleBoost = sphere.visible ? Math.max(0, Math.cos(angleDiff)) * 4.2 : 0;
+                        const snack = snakeApples[activeAppleIndex];
+                        const snackVector = snack ? snack.mesh.position.clone().sub(center).setY(0) : targetSpherePos.clone().sub(center).setY(0);
+                        const snackAngle = snackVector.lengthSq() > 0.0001 ? Math.atan2(snackVector.z, snackVector.x) : snakeOrbitAngle;
+                        const angleDiff = normalizeAngle(snackAngle - snakeOrbitAngle);
+                        snakeOrbitAngle += Math.max(-0.32, Math.min(0.32, angleDiff)) * delta * 0.8;
 
-                        const radiusX = baseRadius + Math.sin(snakeOrbitClock * 0.9) * 2.3 + behindAppleBoost;
-                        const radiusZ = baseRadius * 0.76 + Math.cos(snakeOrbitClock * 0.7) * 1.8 + behindAppleBoost * 0.7;
+                        const appleVector = targetSpherePos.clone().sub(center).setY(0);
+                        const questionAngle = appleVector.lengthSq() > 0.0001 ? Math.atan2(appleVector.z, appleVector.x) : snakeOrbitAngle;
+                        const questionDiff = normalizeAngle(snakeOrbitAngle - questionAngle);
+                        const behindAppleBoost = sphere.visible ? Math.max(0, Math.cos(questionDiff)) * 3.2 : 0;
+                        const snackBoost = snack ? Math.max(0, Math.cos(angleDiff)) * 5.8 : 0;
+
+                        const radiusX = baseRadius + Math.sin(snakeOrbitClock * 0.9) * 2.3 + behindAppleBoost + snackBoost;
+                        const radiusZ = baseRadius * 0.76 + Math.cos(snakeOrbitClock * 0.7) * 1.8 + behindAppleBoost * 0.7 + snackBoost * 0.55;
                         const x = center.x + Math.cos(snakeOrbitAngle) * radiusX + Math.cos(snakeOrbitAngle * 2.4) * 1.1;
                         const z = center.z + Math.sin(snakeOrbitAngle) * radiusZ + Math.sin(snakeOrbitAngle * 1.6) * 0.9;
                         const y = 0.56 + Math.sin(snakeOrbitClock * 2.4) * 0.05;
+                        const headPos = new THREE.Vector3(x, y, z);
 
-                        return new THREE.Vector3(x, y, z);
+                        if (snack && headPos.distanceTo(snack.mesh.position) < 2.2) {
+                            consumeSnakeApple(activeAppleIndex);
+                        }
+
+                        return headPos;
                     }
 
                     function updateSnakeFinal(delta, prevHead) {
@@ -1802,6 +1939,7 @@
                     function startFinalEatSequence() {
                         finalEatTargets = buildFinalEatTargets();
                         gamePhase = finalEatTargets.length ? 'finishing' : 'finished';
+                        if (appleGroup) appleGroup.visible = false;
                     }
 
                     function buildFinalEatTargets() {
@@ -1858,16 +1996,21 @@
                         snakeHead.rotation.y = snakeAngle;
 
                         let count = 0;
-                        for (let i = 0; i < SNAKE_SEGMENTS; i++) {
-                            const idx = Math.min(snakePathPoints.length - 1, i * 3);
+                        const visibleSegments = Math.max(8, Math.min(SNAKE_SEGMENTS - 2, Math.floor(snakeCurrentLength)));
+                        for (let i = 0; i < visibleSegments; i++) {
+                            const idx = Math.min(snakePathPoints.length - 1, i * 2);
                             const pos = snakePathPoints[idx];
                             const next = snakePathPoints[Math.min(snakePathPoints.length - 1, idx + 1)] || pos;
-                            const t = i / Math.max(1, SNAKE_SEGMENTS - 1);
-                            const radius = 1.04 - t * 0.72;
+                            const t = i / Math.max(1, visibleSegments - 1);
+                            const radius = 1.34 - t * 0.86;
 
                             snakeDummy.position.copy(pos);
-                            snakeDummy.position.y = 0.42 - t * 0.1;
-                            snakeDummy.scale.set(Math.max(0.14, radius), Math.max(0.09, radius * 0.54), Math.max(0.18, radius * 1.18));
+                            snakeDummy.position.y = 0.46 - t * 0.08;
+                            snakeDummy.scale.set(
+                                Math.max(0.22, radius * 0.98),
+                                Math.max(0.18, radius * 0.78),
+                                Math.max(0.26, radius * 1.06)
+                            );
                             snakeDummy.lookAt(next);
                             snakeDummy.updateMatrix();
                             snakeBody.setMatrixAt(i, snakeDummy.matrix);
