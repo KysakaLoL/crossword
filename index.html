@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <script src="/socket.io/socket.io.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Crossword Snake Classroom</title>
+    <style>
+        :root {
+            --bg: #e9edf2;
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-border: rgba(255, 255, 255, 0.98);
+            --text: #17344b;
+            --muted: #5f758b;
+            --accent: #009ff5;
+            --accent-dark: #0e75c9;
+            --danger: #e45858;
+            --success: #1cc979;
+            --shadow: 0 18px 44px rgba(26, 43, 57, 0.16);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at top, #f7fafc 0%, var(--bg) 54%, #dbe3ea 100%);
+            font-family: "Segoe UI", sans-serif;
+            color: var(--text);
+        }
+
+        button,
+        input {
+            font: inherit;
+        }
+
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 16px;
+            background: linear-gradient(180deg, var(--accent), var(--accent-dark));
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #879aac;
+        }
+
+        button.ghost {
+            background: #eef5fb;
+            color: var(--text);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            border: 2px solid #b7dfff;
+            border-radius: 14px;
+            padding: 13px 15px;
+            background: #fff;
+            color: var(--text);
+            outline: none;
+        }
+
+        .glass {
+            background: var(--panel);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        #file-selector {
+            display: none;
+        }
+
+        #teacher-root,
+        #student-root {
+            position: fixed;
+            inset: 0;
+        }
+
+        #student-root {
+            display: none;
+            background: linear-gradient(180deg, #eef6fb 0%, #e2eaf2 100%);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        #teacher-ui {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 20;
+            width: min(360px, calc(100vw - 32px));
+            padding: 16px;
+        }
+
+        #teacher-topline {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        #camera-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        #teacher-status,
+        #join-link,
+        #join-note,
+        #question-help,
+        #student-status {
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.4;
+        }
+
+        #teacher-scoreboard {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #d9e4ef;
+        }
+
+        #teacher-scoreboard h3,
+        #student-card h1,
+        #question-box h2,
+        #start-card h1 {
+            margin: 0;
+        }
+
+        #score-list {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px;
+            background: #f4f8fb;
+            padding: 9px 12px;
+            font-weight: 600;
+        }
+
+        .score-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .mini-btn {
+            padding: 6px 9px;
+            border-radius: 10px;
+            background: #e9f2fa;
+            color: var(--text);
+            font-size: 0.82rem;
+            line-height: 1;
+        }
+
+        .mini-btn.danger {
+            background: #fde7e7;
+            color: #8d2424;
+        }
+
+        #question-box {
+            position: absolute;
+            top: 20px;
+            left: 16px;
+            z-index: 30;
+            width: min(420px, calc(100vw - 32px));
+            padding: 16px;
+            display: none;
+        }
+
+        #step-counter {
+            color: var(--accent);
+            font-size: 1.02rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        #question-text {
+            margin-top: 8px;
+            font-size: 1.06rem;
+            font-weight: 600;
+            line-height: 1.45;
+        }
+
+        #answer-meta,
+        #feedback {
+            margin-top: 10px;
+            font-weight: 600;
+        }
+
+        #feedback {
+            min-height: 22px;
+        }
+
+        #feedback.good {
+            color: var(--success);
+        }
+
+        #feedback.bad {
+            color: var(--danger);
+        }
+
+        #answer-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        #keyboard {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 8px;
+            margin-top: 14px;
+        }
+
+        .key {
+            padding: 11px 0;
+            border-radius: 12px;
+            background: #eef5fb;
+            text-align: center;
+            font-weight: 700;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(13, 25, 35, 0.62);
+        }
+
+        #start-card {
+            width: min(470px, calc(100vw - 24px));
+            padding: 24px;
+            text-align: center;
+        }
+
+        #qr-box {
+            width: 260px;
+            height: 260px;
+            margin: 18px auto 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-radius: 18px;
+            padding: 14px;
+        }
+
+        #qr-box canvas,
+        #qr-box img {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+
+        #start-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        #winner-banner {
+            position: fixed;
+            inset: auto 16px 16px 16px;
+            z-index: 90;
+            display: none;
+            padding: 16px 18px;
+            background: rgba(18, 42, 31, 0.94);
+            color: #f5fff9;
+            border-radius: 18px;
+            box-shadow: 0 16px 40px rgba(18, 42, 31, 0.24);
+        }
+
+        #boot-error {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            z-index: 200;
+            display: none;
+            max-width: min(560px, calc(100vw - 32px));
+            padding: 14px 16px;
+            border-radius: 16px;
+            background: rgba(93, 18, 18, 0.96);
+            color: #fff2f2;
+            white-space: pre-wrap;
+        }
+
+        #student-card {
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 18px;
+        }
+
+        #student-join,
+        #student-game {
+            margin-top: 14px;
+        }
+
+        #student-game {
+            display: none;
+        }
+
+        #student-question {
+            font-size: 1.08rem;
+            font-weight: 600;
+            line-height: 1.45;
+            margin: 12px 0;
+        }
+
+        #student-score {
+            margin-top: 8px;
+            font-weight: 700;
+            color: var(--accent-dark);
+        }
+
+        #student-answer-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        #student-board {
+            margin-top: 16px;
+            display: grid;
+            gap: 8px;
+        }
+
+        @media (max-width: 800px) {
+            #teacher-ui {
+                width: min(320px, calc(100vw - 24px));
+                top: 12px;
+                left: 12px;
+            }
+
+            #question-box {
+                width: min(350px, calc(100vw - 24px));
+                top: auto;
+                bottom: 12px;
+                left: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="file-selector" accept=".txt">
+
+    <div id="teacher-root">
+        <div id="teacher-ui" class="glass">
+            <div id="teacher-topline">
+                <button id="load-btn" type="button">Загрузить кроссворд .txt</button>
+                <button id="show-qr-btn" type="button" class="ghost">QR</button>
+            </div>
+            <div id="teacher-status">Ожидание загрузки кроссворда.</div>
+            <div id="camera-actions">
+                <button id="camera-word-btn" type="button" class="ghost">К слову</button>
+                <button id="camera-top-btn" type="button" class="ghost">Сверху</button>
+                <button id="camera-free-btn" type="button" class="ghost">Свободно</button>
+            </div>
+            <div id="join-link" style="margin-top:10px;"></div>
+            <div id="join-note" style="margin-top:8px;">Ученики подключаются по QR. Если страница открыта как file://, QR покажет ссылку, но для телефонов нужен реальный URL.</div>
+            <div id="teacher-scoreboard">
+                <h3>Рейтинг</h3>
+                <div id="score-list"></div>
+            </div>
+        </div>
+
+        <div id="question-box" class="glass">
+            <div id="step-counter">Вопрос №1</div>
+            <h2 style="font-size:1.25rem;">Текущий вопрос</h2>
+            <div id="question-text">Загрузите файл, чтобы начать.</div>
+            <div id="answer-meta">Длина ответа: 0</div>
+            <input type="text" id="answer-input" placeholder="Ответ ведущего" autocomplete="off">
+            <div id="question-help">Окно стоит сбоку, чтобы не перекрывать слово. Красная сфера слева от ответа открывает вопрос.</div>
+            <div id="answer-actions">
+                <button id="submit-answer" type="button">Ответить</button>
+                <button id="close-question" type="button" class="secondary">Закрыть</button>
+            </div>
+            <div id="feedback"></div>
+            <div id="keyboard"></div>
+        </div>
+    </div>
+
+    <div id="student-root">
+        <div id="student-card" class="glass">
+            <h1>Подключение ученика</h1>
+            <div id="student-status">Подключаемся к ведущему...</div>
+
+            <div id="student-join">
+                <div style="margin-top:14px;">Ваше имя</div>
+                <input type="text" id="student-name" maxlength="24" placeholder="Например, Алина">
+                <div id="student-answer-actions">
+                    <button id="student-join-btn" type="button">Войти</button>
+                </div>
+            </div>
+
+            <div id="student-game">
+                <div id="student-question">Ожидаем вопрос...</div>
+                <div id="student-score">Очки: 0</div>
+                <div id="student-audio-help" style="margin-top:8px; color:var(--muted);">Если ведущий захочет подать сигнал, сначала разрешите звук.</div>
+                <input type="text" id="student-answer" placeholder="Ваш ответ" autocomplete="off">
+                <div id="student-answer-actions">
+                    <button id="student-send-answer" type="button">Отправить</button>
+                    <button id="student-enable-audio" type="button" class="ghost">Разрешить звук</button>
+                </div>
+                <div id="student-board"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="start-overlay">
+        <div id="start-card" class="glass">
+            <h1 style="font-size:1.65rem;">Подключение по QR</h1>
+            <div style="margin-top:10px; color:var(--muted); line-height:1.45;">Перед стартом ведущий показывает QR-код. Ученики открывают тот же файл по ссылке и попадают в режим ответа.</div>
+            <div id="qr-box"></div>
+            <div id="qr-url" style="word-break:break-all; color:#42617d; font-size:0.92rem;"></div>
+            <div id="qr-note" style="margin-top:10px; color:var(--muted); font-size:0.92rem;"></div>
+            <div id="start-actions">
+                <button id="start-local-btn" type="button">Продолжить</button>
+                <button id="copy-link-btn" type="button" class="ghost">Скопировать ссылку</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="winner-banner"></div>
+    <div id="boot-error"></div>
+
+    <script>
+        window.addEventListener('error', event => {
+            const el = document.getElementById('boot-error');
+            el.style.display = 'block';
+            el.textContent = `Ошибка запуска:\n${event.message}`;
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+	const socket = io();
+
+// Слушаем сообщения от других игроков
+socket.on('sync_word', (data) => {
+    console.log("Другой игрок отгадал слово:", data);
+    // Здесь вызываем твою функцию отрисовки слова в 3D
+    // Например: forceApplyAnswer(data.step, data.answer);
+});
+        (() => {
+            try {
+                const params = new URLSearchParams(location.search);
+                const joinId = params.get('join');
+                const isStudent = !!joinId;
+                const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+                const TILE_SIZE = 2;
+                const SNAKE_SPEED = 4.1;
+                const SNAKE_SEGMENTS = isMobile ? 66 : 86;
+                const SNAKE_POINT_STEP = 0.24;
+                const MAX_WORDS = 100;
+
+                const teacherRoot = document.getElementById('teacher-root');
+                const studentRoot = document.getElementById('student-root');
+                const startOverlay = document.getElementById('start-overlay');
+                const bootError = document.getElementById('boot-error');
+
+                if (isStudent) {
+                    teacherRoot.style.display = 'none';
+                    studentRoot.style.display = 'block';
+                    startOverlay.style.display = 'none';
+                    initStudent(joinId);
+                } else {
+                    teacherRoot.style.display = 'block';
+                    studentRoot.style.display = 'none';
+                    initTeacher();
+                }
+
+                function initStudent(hostId) {
+                    const status = document.getElementById('student-status');
+                    const joinButton = document.getElementById('student-join-btn');
+                    const joinPanel = document.getElementById('student-join');
+                    const gamePanel = document.getElementById('student-game');
+                    const nameInput = document.getElementById('student-name');
+                    const answerInput = document.getElementById('student-answer');
+                    const answerButton = document.getElementById('student-send-answer');
+                    const enableAudioButton = document.getElementById('student-enable-audio');
+                    const questionEl = document.getElementById('student-question');
+                    const scoreEl = document.getElementById('student-score');
+                    const boardEl = document.getElementById('student-board');
+
+                    let myName = '';
+                    let myScore = 0;
+                    let conn = null;
+                    let peer = null;
+                    let audioCtx = null;
+                    let audioEnabled = false;
+
+                    status.textContent = 'Ожидаем входа в комнату ведущего...';
+
+                    function renderBoard(board) {
+                        boardEl.innerHTML = '';
+                        board.slice(0, 8).forEach((item, idx) => {
+                            const row = document.createElement('div');
+                            row.className = 'score-row';
+                            row.innerHTML = `<span>${idx + 1}. ${escapeHtml(item.name)}</span><span>${item.score}</span>`;
+                            boardEl.appendChild(row);
+                        });
+                    }
+
+                    function sendAnswer() {
+                        if (!conn || conn.open !== true) return;
+                        const answer = answerInput.value.trim().toUpperCase();
+                        if (!answer) return;
+                        conn.send({ type: 'answer', answer: answer });
+                        answerInput.value = '';
+                    }
+
+                    function playRemoteTone() {
+                        if (!audioEnabled) {
+                            status.textContent = 'Ведущий отправил звук, но на телефоне он еще не разрешен.';
+                            return;
+                        }
+                        if (!audioCtx) {
+                            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        }
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.value = 880;
+                        gain.gain.value = 0.0001;
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        const now = audioCtx.currentTime;
+                        gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+                        osc.start(now);
+                        osc.stop(now + 0.4);
+                    }
+
+                    joinButton.addEventListener('click', () => {
+                        const rawName = nameInput.value.trim();
+                        myName = normalizePlayerName(rawName);
+                        nameInput.value = myName;
+
+                        peer = new Peer(undefined, {
+                            secure: location.protocol === 'https:',
+                            config: {
+                                iceServers: [
+                                    { urls: 'stun:stun.l.google.com:19302' },
+                                    { urls: 'stun:global.stun.twilio.com:3478' }
+                                ]
+                            }
+                        });
+                        status.textContent = 'Подключаемся...';
+                        peer.on('open', () => {
+                            conn = peer.connect(hostId, { reliable: true });
+                            conn.on('open', () => {
+                                status.textContent = 'Подключено. Ожидаем вопрос.';
+                                conn.send({ type: 'join', name: myName });
+                                joinPanel.style.display = 'none';
+                                gamePanel.style.display = 'block';
+                            });
+                            conn.on('data', data => {
+                                if (!data || typeof data !== 'object') return;
+                                if (data.type === 'question') {
+                                    questionEl.textContent = data.question || 'Ожидаем вопрос...';
+                                }
+                                if (data.type === 'score') {
+                                    myScore = data.score || 0;
+                                    scoreEl.textContent = `Очки: ${myScore}`;
+                                }
+                                if (data.type === 'board') {
+                                    renderBoard(data.board || []);
+                                }
+                                if (data.type === 'message') {
+                                    status.textContent = data.text || '';
+                                }
+                                if (data.type === 'winner') {
+                                    questionEl.textContent = `Победитель: ${data.name}`;
+                                }
+                                if (data.type === 'playTone') {
+                                    playRemoteTone();
+                                }
+                                if (data.type === 'kicked') {
+                                    status.textContent = 'Ведущий отключил это подключение.';
+                                    if (conn) conn.close();
+                                }
+                            });
+                            conn.on('error', () => {
+                                status.textContent = 'Не удалось подключиться к ведущему.';
+                            });
+                        });
+                        peer.on('error', err => {
+                            status.textContent = `Ошибка подключения: ${err.message}`;
+                        });
+                    });
+
+
+
+
+
+
+                    answerButton.addEventListener('click', sendAnswer);
+                    answerInput.addEventListener('keypress', event => {
+                        if (event.key === 'Enter') sendAnswer();
+                    });
+                    enableAudioButton.addEventListener('click', async () => {
+                        try {
+                            if (!audioCtx) {
+                                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                            }
+                            await audioCtx.resume();
+                            audioEnabled = true;
+                            status.textContent = 'Звук разрешен.';
+                        } catch (_) {
+                            status.textContent = 'Не удалось включить звук.';
+                        }
+                    });
+                }
+
+                function initTeacher() {
+                    const fileSelector = document.getElementById('file-selector');
+                    const loadBtn = document.getElementById('load-btn');
+                    const showQrBtn = document.getElementById('show-qr-btn');
+                    const teacherStatus = document.getElementById('teacher-status');
+                    const joinLinkEl = document.getElementById('join-link');
+                    const answerInput = document.getElementById('answer-input');
+                    const questionBox = document.getElementById('question-box');
+                    const questionText = document.getElementById('question-text');
+                    const answerMeta = document.getElementById('answer-meta');
+                    const stepCounter = document.getElementById('step-counter');
+                    const feedback = document.getElementById('feedback');
+                    const winnerBanner = document.getElementById('winner-banner');
+
+                    let scene;
+                    let camera;
+                    let renderer;
+                    let controls;
+                    let floor;
+                    let gridHelper;
+                    let pointLight;
+                    let sphere;
+                    let snakeHead;
+                    let snakeBody;
+                    let snakeDummy;
+                    let frameGroup;
+                    let snakeAngle = 0;
+                    let snakePathPoints = [];
+                    let snakeGridPath = [];
+                    let snakeCurrentGrid = { x: -14, z: 14 };
+                    let snakeNextGrid = { x: -13, z: 14 };
+                    let snakeProgress = 0;
+                    let lastHeadPoint = new THREE.Vector3();
+
+                    let tileMap = new Map();
+                    let fixedLettersMap = new Map();
+                    let cellStateMap = new Map();
+                    let occupiedLetterMap = new Map();
+                    let activeLetters = [];
+                    let activePathCoords = [];
+                    let currentStep = 0;
+                    let originalQuizData = [];
+                    let quizData = [];
+                    let layoutBounds = { minX: -8, maxX: 8, minZ: -8, maxZ: 8 };
+                    let targetSpherePos = new THREE.Vector3(0, 1.2, 0);
+                    let desiredCameraPos = new THREE.Vector3(24, 18, 24);
+                    let desiredCameraTarget = new THREE.Vector3(0, 0, 0);
+                    let cameraAssist = 0;
+                    let cameraMode = 'free';
+                    let raycaster = new THREE.Raycaster();
+                    let pointerDownPos = null;
+                    let pointerDragged = false;
+
+                    let peer;
+                    let hostId = '';
+                    let studentCounter = 1;
+                    const students = new Map();
+
+                    const teacherState = {
+                        currentQuestion: '',
+                        solved: false,
+                        pendingAdvance: false
+                    };
+
+                    const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.05 });
+                    const matGood = new THREE.MeshStandardMaterial({ color: 0x19cf79, emissive: 0x0d653b, emissiveIntensity: 0.28 });
+                    const matBad = new THREE.MeshStandardMaterial({ color: 0xe55a5a, emissive: 0x692222, emissiveIntensity: 0.18 });
+
+                    initScene();
+                    initNetworking();
+                    initKeyboard();
+                    bindUi();
+                    animate();
+
+                    function initScene() {
+                        scene = new THREE.Scene();
+                        scene.background = new THREE.Color(0xe8ebf0);
+                        scene.fog = new THREE.Fog(0xe8ebf0, 48, 150);
+
+                        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 400);
+                        camera.position.set(26, 18, 24);
+
+                        renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: false });
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.7));
+                        renderer.shadowMap.enabled = !isMobile;
+                        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                        document.body.appendChild(renderer.domElement);
+                        renderer.domElement.style.touchAction = 'none';
+
+                        controls = new THREE.OrbitControls(camera, renderer.domElement);
+                        controls.enableDamping = true;
+                        controls.enabled = true;
+                        controls.dampingFactor = 0.08;
+                        controls.target.set(0, 0, 0);
+                        controls.maxPolarAngle = Math.PI * 0.495;
+                        controls.minDistance = 10;
+                        controls.maxDistance = 90;
+                        controls.screenSpacePanning = true;
+                        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+                        controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+                        controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+                        controls.touches.ONE = THREE.TOUCH.ROTATE;
+                        controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+                        controls.addEventListener('start', () => {
+                            cameraAssist = 0;
+                            cameraMode = 'free';
+                        });
+
+                        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+                        pointLight = new THREE.PointLight(0xffffff, 0.95, 220);
+                        pointLight.position.set(24, 34, 20);
+                        scene.add(pointLight);
+
+                        floor = new THREE.Mesh(
+                            new THREE.PlaneGeometry(220, 220),
+                            new THREE.MeshStandardMaterial({ color: 0xe5e9ef, roughness: 0.94, metalness: 0.02 })
+                        );
+                        floor.rotation.x = -Math.PI / 2;
+                        floor.position.y = -0.01;
+                        floor.receiveShadow = !isMobile;
+                        scene.add(floor);
+
+                        gridHelper = new THREE.GridHelper(140, 70, 0x95e7ff, 0x6ecff6);
+                        gridHelper.position.y = 0.02;
+                        scene.add(gridHelper);
+
+                        frameGroup = new THREE.Group();
+                        scene.add(frameGroup);
+
+                        sphere = new THREE.Group();
+                        const sphereCore = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.62, 20, 20),
+                            new THREE.MeshStandardMaterial({ color: 0xd92b2b, emissive: 0x7f1111, emissiveIntensity: 0.35, roughness: 0.24 })
+                        );
+                        sphere.add(sphereCore);
+                        scene.add(sphere);
+                        sphere.visible = false;
+
+                        buildSnakeVisuals();
+                    }
+
+                    function buildSnakeVisuals() {
+                        const headMat = new THREE.MeshPhysicalMaterial({
+                            color: 0x00aa44,
+                            roughness: 0.15,
+                            metalness: 0.7,
+                            emissive: 0x002211,
+                            clearcoat: 1,
+                            clearcoatRoughness: 0.1
+                        });
+                        const bodyMat = new THREE.MeshPhysicalMaterial({
+                            color: 0x00ff88,
+                            roughness: 0.1,
+                            metalness: 0.88,
+                            emissive: 0x002613,
+                            clearcoat: 1,
+                            clearcoatRoughness: 0.08
+                        });
+
+                        snakeHead = new THREE.Group();
+
+                        const skull = new THREE.Mesh(new THREE.SphereGeometry(0.7, 18, 18), headMat);
+                        skull.scale.set(1.12, 0.82, 1.58);
+                        snakeHead.add(skull);
+
+                        const snout = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 14), headMat);
+                        snout.scale.set(1.12, 0.62, 1.18);
+                        snout.position.set(0, -0.02, -0.88);
+                        snakeHead.add(snout);
+
+                        const leftEye = new THREE.Mesh(
+                            new THREE.TetrahedronGeometry(0.12),
+                            new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 3.8, roughness: 0.15 })
+                        );
+                        leftEye.position.set(-0.24, 0.12, -0.52);
+                        const rightEye = leftEye.clone();
+                        rightEye.position.x = 0.24;
+                        snakeHead.add(leftEye);
+                        snakeHead.add(rightEye);
+
+                        scene.add(snakeHead);
+
+                        const segmentGeo = new THREE.ConeGeometry(0.42, 0.92, 4);
+                        segmentGeo.rotateX(Math.PI / 2);
+                        snakeBody = new THREE.InstancedMesh(segmentGeo, bodyMat, SNAKE_SEGMENTS);
+                        snakeBody.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                        scene.add(snakeBody);
+                        snakeDummy = new THREE.Object3D();
+
+                        const startPos = gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.55);
+                        for (let i = 0; i < SNAKE_SEGMENTS * 4; i++) {
+                            snakePathPoints.push(startPos.clone());
+                        }
+                        lastHeadPoint.copy(startPos);
+                    }
+
+                    function initNetworking() {
+                        if (typeof Peer === 'undefined') {
+                            joinLinkEl.textContent = 'PeerJS не загрузился. QR и ученики будут недоступны.';
+                            return;
+                        }
+
+                        peer = new Peer(undefined, {
+                            secure: location.protocol === 'https:',
+                            config: {
+                                iceServers: [
+                                    { urls: 'stun:stun.l.google.com:19302' },
+                                    { urls: 'stun:global.stun.twilio.com:3478' }
+                                ]
+                            }
+                        });
+                        peer.on('open', id => {
+                            hostId = id;
+                            updateQr();
+                        });
+                        peer.on('connection', conn => {
+                            conn.on('data', data => handleStudentMessage(conn, data));
+                            conn.on('close', () => removeStudentByConn(conn));
+                        });
+                        peer.on('error', err => {
+                            joinLinkEl.textContent = `Ошибка PeerJS: ${err.message}`;
+                        });
+                    }
+
+                    function updateQr() {
+                        const base = new URL(location.href);
+                        base.searchParams.set('join', hostId);
+                        const url = base.toString();
+                        joinLinkEl.textContent = url;
+                        document.getElementById('qr-url').textContent = url;
+                        document.getElementById('qr-note').textContent = location.protocol === 'file:'
+                            ? 'Сейчас открыт file://. Для телефонов нужен URL вроде http://...'
+                            : 'Покажите QR на экране перед началом, ученики зайдут прямо в режим ответа.';
+
+                        const qrBox = document.getElementById('qr-box');
+                        qrBox.innerHTML = '';
+                        if (typeof QRCode !== 'undefined') {
+                            new QRCode(qrBox, {
+                                text: url,
+                                width: 228,
+                                height: 228,
+                                colorDark: '#17344b',
+                                colorLight: '#ffffff',
+                                correctLevel: QRCode.CorrectLevel.M
+                            });
+                        }
+                    }
+
+                    function handleStudentMessage(conn, data) {
+                        if (!data || typeof data !== 'object') return;
+
+                        if (data.type === 'join') {
+                            const player = {
+                                id: conn.peer,
+                                conn: conn,
+                                name: normalizePlayerName(data.name || ''),
+                                score: 0
+                            };
+                            if (!player.name) {
+                                player.name = `Игрок ${studentCounter++}`;
+                            }
+                            students.set(conn.peer, player);
+                            sendBoard();
+                            conn.send({ type: 'message', text: 'Подключение успешно.' });
+                            conn.send({ type: 'score', score: player.score });
+                            conn.send({ type: 'question', question: teacherState.currentQuestion || 'Ожидаем первый вопрос...' });
+                            teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                            return;
+                        }
+
+                        if (data.type === 'answer') {
+                            const student = students.get(conn.peer);
+                            if (!student || !quizData[currentStep] || teacherState.solved) return;
+
+                            const answer = String(data.answer || '').trim().toUpperCase();
+                            if (!answer) return;
+
+                            if (answer === quizData[currentStep].a) {
+                                teacherState.solved = true;
+                                student.score += 1;
+                                conn.send({ type: 'message', text: 'Верно. Балл начислен.' });
+                                conn.send({ type: 'score', score: student.score });
+                                sendBoard();
+                                applyCorrectAnswer(student.name);
+                            } else {
+                                conn.send({ type: 'message', text: 'Пока неверно.' });
+                            }
+                        }
+                    }
+
+                    function removeStudentByConn(conn) {
+                        if (students.delete(conn.peer)) {
+                            teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                            sendBoard();
+                        }
+                    }
+
+                    function sendBoard() {
+                        const list = [...students.values()]
+                            .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+                            .map(item => ({ id: item.id, name: item.name, score: item.score }));
+
+                        renderTeacherBoard(list);
+                        students.forEach(student => {
+                            if (student.conn.open) {
+                                student.conn.send({ type: 'board', board: list.map(item => ({ name: item.name, score: item.score })) });
+                            }
+                        });
+                    }
+
+                    function renderTeacherBoard(list) {
+                        const scoreList = document.getElementById('score-list');
+                        scoreList.innerHTML = '';
+                        if (!list.length) {
+                            scoreList.innerHTML = '<div style="color:#7a8ea3;">Пока никто не подключился.</div>';
+                            return;
+                        }
+
+                        list.forEach((item, idx) => {
+                            const row = document.createElement('div');
+                            row.className = 'score-row';
+                            row.innerHTML = `<span>${idx + 1}. ${escapeHtml(item.name)}</span><div class="score-actions"><span>${item.score}</span><button type="button" class="mini-btn" data-action="tone" data-peer="${item.id}">Звук</button><button type="button" class="mini-btn danger" data-action="kick" data-peer="${item.id}">Удалить</button></div>`;
+                            scoreList.appendChild(row);
+                        });
+
+                        scoreList.querySelectorAll('button[data-action="tone"]').forEach(button => {
+                            button.addEventListener('click', () => {
+                                const student = students.get(button.dataset.peer);
+                                if (student && student.conn.open) {
+                                    student.conn.send({ type: 'playTone' });
+                                }
+                            });
+                        });
+
+                        scoreList.querySelectorAll('button[data-action="kick"]').forEach(button => {
+                            button.addEventListener('click', () => {
+                                kickStudent(button.dataset.peer);
+                            });
+                        });
+                    }
+
+                    function kickStudent(peerId) {
+                        const student = students.get(peerId);
+                        if (!student) return;
+                        if (student.conn.open) {
+                            student.conn.send({ type: 'kicked' });
+                            student.conn.close();
+                        }
+                        students.delete(peerId);
+                        teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                        sendBoard();
+                    }
+
+                    function broadcastQuestion() {
+                        const text = quizData[currentStep]
+                            ? `Вопрос ${currentStep + 1}: ${quizData[currentStep].q}`
+                            : 'Кроссворд завершен.';
+                        teacherState.currentQuestion = text;
+                        teacherState.solved = false;
+                        students.forEach(student => {
+                            if (student.conn.open) {
+                                student.conn.send({ type: 'question', question: text });
+                            }
+                        });
+                    }
+
+                    function broadcastWinner() {
+                        const sorted = [...students.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
+                        const winner = sorted[0];
+                        if (!winner) return;
+                        students.forEach(student => {
+                            if (student.conn.open) {
+                                student.conn.send({ type: 'winner', name: winner.name });
+                            }
+                        });
+                    }
+
+                    function bindUi() {
+                        loadBtn.addEventListener('click', () => fileSelector.click());
+                        showQrBtn.addEventListener('click', () => {
+                            startOverlay.style.display = 'flex';
+                        });
+                        document.getElementById('camera-word-btn').addEventListener('click', () => {
+                            if (!quizData[currentStep]) return;
+                            cameraMode = 'word';
+                            focusCameraOnWord(quizData[currentStep]);
+                        });
+                        document.getElementById('camera-top-btn').addEventListener('click', () => {
+                            cameraMode = 'top';
+                            focusCameraTop();
+                        });
+                        document.getElementById('camera-free-btn').addEventListener('click', () => {
+                            cameraMode = 'free';
+                            cameraAssist = 0;
+                        });
+                        document.getElementById('start-local-btn').addEventListener('click', () => {
+                            startOverlay.style.display = 'none';
+                        });
+                        document.getElementById('copy-link-btn').addEventListener('click', async () => {
+                            const text = joinLinkEl.textContent.trim();
+                            if (!text) return;
+                            try {
+                                await navigator.clipboard.writeText(text);
+                            } catch (_) {}
+                        });
+                        document.getElementById('submit-answer').addEventListener('click', submitTeacherAnswer);
+                        document.getElementById('close-question').addEventListener('click', closeQuestion);
+                        answerInput.addEventListener('keypress', event => {
+                            if (event.key === 'Enter') submitTeacherAnswer();
+                        });
+                        answerInput.addEventListener('input', updateTypedPreview);
+                        fileSelector.addEventListener('change', loadCrosswordFromFile);
+
+                        window.addEventListener('pointerdown', onPointerDown, { passive: true });
+                        window.addEventListener('pointermove', onPointerMove, { passive: true });
+                        window.addEventListener('pointerup', onPointerUp, { passive: true });
+                        window.addEventListener('resize', onResize);
+                        window.addEventListener('keydown', event => {
+                            if (event.key === 'Escape') closeQuestion();
+                        });
+                    }
+
+                    function initKeyboard() {
+                        const keyboard = document.getElementById('keyboard');
+                        const letters = 'ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ'.split('');
+                        letters.forEach(ch => {
+                            const key = document.createElement('div');
+                            key.className = 'key';
+                            key.textContent = ch;
+                            key.addEventListener('click', () => {
+                                answerInput.value += ch;
+                                answerInput.dispatchEvent(new Event('input'));
+                                answerInput.focus();
+                            });
+                            keyboard.appendChild(key);
+                        });
+                        const back = document.createElement('div');
+                        back.className = 'key';
+                        back.textContent = '⌫';
+                        back.addEventListener('click', () => {
+                            answerInput.value = answerInput.value.slice(0, -1);
+                            answerInput.dispatchEvent(new Event('input'));
+                            answerInput.focus();
+                        });
+                        keyboard.appendChild(back);
+                    }
+
+                    async function loadCrosswordFromFile(event) {
+                        const file = event.target.files && event.target.files[0];
+                        if (!file) return;
+                        const text = await file.text();
+                        const lines = text
+                            .split(/\r?\n/)
+                            .map(line => line.trim())
+                            .filter(Boolean);
+
+                        const parsed = [];
+                        for (let i = 0; i < lines.length; i += 2) {
+                            if (!lines[i + 1]) continue;
+                            const answer = normalizeWord(lines[i + 1]);
+                            if (answer.length < 2) continue;
+                            parsed.push({
+                                q: lines[i],
+                                a: answer,
+                                originalIndex: parsed.length
+                            });
+                        }
+
+                        originalQuizData = parsed.slice(0, MAX_WORDS);
+                        if (!originalQuizData.length) {
+                            teacherStatus.textContent = 'Файл не содержит корректных пар вопрос-ответ.';
+                            return;
+                        }
+
+                        fixedLettersMap.forEach(item => scene.remove(item.mesh));
+                        fixedLettersMap.clear();
+                        clearActiveLetters();
+                        cellStateMap.clear();
+                        occupiedLetterMap.clear();
+                        currentStep = 0;
+                        winnerBanner.style.display = 'none';
+
+                        buildLayout();
+                        teacherStatus.textContent = `Кроссворд готов: ${quizData.length} слов.`;
+                        updateSphereTarget();
+                        focusCameraTop();
+                        broadcastQuestion();
+                    }
+
+                    function buildLayout() {
+                        if (!originalQuizData.length) return;
+
+                        const entries = originalQuizData.map(item => ({
+                            q: item.q,
+                            a: item.a,
+                            originalIndex: item.originalIndex,
+                            x: 0,
+                            z: 0,
+                            dir: 'across',
+                            path: [],
+                            anchor: { x: 0, z: 0 }
+                        }));
+
+                        const sorted = entries.slice().sort((a, b) => b.a.length - a.a.length);
+                        const occupied = new Map();
+                        const placed = [];
+
+                        placeEntry(sorted[0], 0, 0, 'across', occupied, placed);
+
+                        for (let i = 1; i < sorted.length; i++) {
+                            const entry = sorted[i];
+                            const candidate = findBestPlacement(entry, placed, occupied) || findFallbackPlacement(entry, occupied);
+                            placeEntry(entry, candidate.x, candidate.z, candidate.dir, occupied, placed);
+                        }
+
+                        quizData = entries.slice().sort((a, b) => a.originalIndex - b.originalIndex);
+                        occupiedLetterMap = occupied;
+                        buildTilesFromLayout();
+                    }
+
+                    function placeEntry(entry, x, z, dir, occupied, placed) {
+                        entry.x = x;
+                        entry.z = z;
+                        entry.dir = dir;
+                        entry.path = [];
+                        const dx = dir === 'across' ? 1 : 0;
+                        const dz = dir === 'down' ? 1 : 0;
+
+                        for (let i = 0; i < entry.a.length; i++) {
+                            const cx = x + dx * i;
+                            const cz = z + dz * i;
+                            const key = `${cx},${cz}`;
+                            entry.path.push({ x: cx, z: cz });
+                            const existing = occupied.get(key);
+                            if (existing) {
+                                existing.char = entry.a[i];
+                                existing.dirs.add(dir);
+                            } else {
+                                occupied.set(key, { char: entry.a[i], dirs: new Set([dir]) });
+                            }
+                        }
+
+                        entry.anchor = { x: x - dx, z: z - dz };
+                        placed.push(entry);
+                    }
+
+                    function findBestPlacement(entry, placed, occupied) {
+                        let best = null;
+
+                        placed.forEach(other => {
+                            for (let i = 0; i < entry.a.length; i++) {
+                                for (let j = 0; j < other.a.length; j++) {
+                                    if (entry.a[i] !== other.a[j]) continue;
+
+                                    const otherCell = other.path[j];
+                                    const dir = other.dir === 'across' ? 'down' : 'across';
+                                    const x = dir === 'across' ? otherCell.x - i : otherCell.x;
+                                    const z = dir === 'down' ? otherCell.z - i : otherCell.z;
+                                    const score = validatePlacement(entry, x, z, dir, occupied, true);
+                                    if (score == null) continue;
+
+                                    if (!best || score > best.score) {
+                                        best = { x, z, dir, score };
+                                    }
+                                }
+                            }
+                        });
+
+                        return best;
+                    }
+
+
+
+
+
+
+                    function validatePlacement(entry, x, z, dir, occupied, requireCross) {
+                        const dx = dir === 'across' ? 1 : 0;
+                        const dz = dir === 'down' ? 1 : 0;
+                        const perpA = dir === 'across' ? { x: 0, z: -1 } : { x: -1, z: 0 };
+                        const perpB = dir === 'across' ? { x: 0, z: 1 } : { x: 1, z: 0 };
+
+                        let overlaps = 0;
+                        let minX = Infinity;
+                        let maxX = -Infinity;
+                        let minZ = Infinity;
+                        let maxZ = -Infinity;
+
+                        for (let i = 0; i < entry.a.length; i++) {
+                            const cx = x + dx * i;
+                            const cz = z + dz * i;
+                            const key = `${cx},${cz}`;
+                            const existing = occupied.get(key);
+                            const char = entry.a[i];
+
+                            minX = Math.min(minX, cx);
+                            maxX = Math.max(maxX, cx);
+                            minZ = Math.min(minZ, cz);
+                            maxZ = Math.max(maxZ, cz);
+
+                            if (existing) {
+                                if (existing.char !== char) return null;
+                                if (existing.dirs && existing.dirs.has(dir)) return null;
+                                overlaps += 1;
+                            } else {
+                                if (occupied.has(`${cx + perpA.x},${cz + perpA.z}`)) return null;
+                                if (occupied.has(`${cx + perpB.x},${cz + perpB.z}`)) return null;
+                            }
+                        }
+
+                        const beforeKey = `${x - dx},${z - dz}`;
+                        const afterKey = `${x + dx * entry.a.length},${z + dz * entry.a.length}`;
+                        if (occupied.has(beforeKey) || occupied.has(afterKey)) return null;
+                        if (requireCross && overlaps === 0) return null;
+
+                        const span = (maxX - minX) + (maxZ - minZ);
+                        const compactness = Math.abs(x) + Math.abs(z);
+                        return overlaps * 100 - span * 2 - compactness;
+                    }
+
+                    function findFallbackPlacement(entry, occupied) {
+                        for (let radius = 4; radius < 80; radius += 2) {
+                            for (let x = -radius; x <= radius; x++) {
+                                const top = tryFallbackAt(entry, x, -radius, occupied);
+                                if (top) return top;
+                                const bottom = tryFallbackAt(entry, x, radius, occupied);
+                                if (bottom) return bottom;
+                            }
+                            for (let z = -radius + 1; z < radius; z++) {
+                                const left = tryFallbackAt(entry, -radius, z, occupied);
+                                if (left) return left;
+                                const right = tryFallbackAt(entry, radius, z, occupied);
+                                if (right) return right;
+                            }
+                        }
+                        return { x: 0, z: 0, dir: 'down' };
+                    }
+
+                    function tryFallbackAt(entry, x, z, occupied) {
+                        const dirs = ['across', 'down'];
+                        for (let i = 0; i < dirs.length; i++) {
+                            const dir = dirs[i];
+                            const score = validatePlacement(entry, x, z, dir, occupied, false);
+                            if (score != null) {
+                                return { x, z, dir, score };
+                            }
+                        }
+                        return null;
+                    }
+
+                    function buildTilesFromLayout() {
+                        tileMap.forEach(tile => scene.remove(tile.base));
+                        tileMap.clear();
+                        while (frameGroup.children.length) {
+                            frameGroup.remove(frameGroup.children[0]);
+                        }
+                        fixedLettersMap.forEach(item => scene.remove(item.mesh));
+                        fixedLettersMap.clear();
+
+                        const normalMatFactory = () => new THREE.MeshStandardMaterial({ color: 0x1a3a5a, roughness: 0.42, metalness: 0.05 });
+                        const frameMat = new THREE.MeshBasicMaterial({ color: 0x6fdcff, transparent: true, opacity: 0.34 });
+                        layoutBounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+
+                        occupiedLetterMap.forEach((value, key) => {
+                            const [x, z] = key.split(',').map(Number);
+                            layoutBounds.minX = Math.min(layoutBounds.minX, x);
+                            layoutBounds.maxX = Math.max(layoutBounds.maxX, x);
+                            layoutBounds.minZ = Math.min(layoutBounds.minZ, z);
+                            layoutBounds.maxZ = Math.max(layoutBounds.maxZ, z);
+
+                            const base = new THREE.Mesh(
+                                new THREE.BoxGeometry(TILE_SIZE - 0.16, 0.18, TILE_SIZE - 0.16),
+                                normalMatFactory()
+                            );
+                            base.position.set(x * TILE_SIZE, 0.09, z * TILE_SIZE);
+                            base.castShadow = false;
+                            base.receiveShadow = !isMobile;
+                            scene.add(base);
+                            const frame = new THREE.Mesh(new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE), frameMat.clone());
+                            frame.rotation.x = -Math.PI / 2;
+                            frame.position.set(x * TILE_SIZE, 0.015, z * TILE_SIZE);
+                            frameGroup.add(frame);
+                            tileMap.set(key, { base, frame });
+                        });
+
+                        refreshTiles();
+                    }
+
+                    function refreshTiles() {
+                        tileMap.forEach((tile, key) => {
+                            const state = cellStateMap.get(key) || 'empty';
+                            const isActive = activePathCoords.some(coord => `${coord.x},${coord.z}` === key);
+
+                            if (state === 'correct') tile.base.material.color.set(0x16c977);
+                            else if (state === 'wrong') tile.base.material.color.set(0xe45858);
+                            else if (isActive) tile.base.material.color.set(0xffffff);
+                            else tile.base.material.color.set(0x1a3a5a);
+                        });
+                    }
+
+                    function clearActiveLetters() {
+                        activeLetters.forEach(mesh => scene.remove(mesh));
+                        activeLetters = [];
+                        activePathCoords = [];
+                        refreshTiles();
+                    }
+
+                    function createLetterCube(char, pos, material) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 128;
+                        canvas.height = 128;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, 128, 128);
+                        ctx.fillStyle = '#0d2030';
+                        ctx.font = 'bold 88px Segoe UI';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(char, 64, 66);
+
+                        const tex = new THREE.CanvasTexture(canvas);
+                        const cubeMat = material.clone();
+                        cubeMat.map = tex;
+
+                        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.08, 1.08, 1.08), cubeMat);
+                        mesh.position.copy(pos);
+                        mesh.position.y = 0.72;
+                        scene.add(mesh);
+                        return mesh;
+                    }
+
+                    function updateTypedPreview() {
+                        const value = answerInput.value.toUpperCase();
+                        answerInput.value = value;
+                        feedback.textContent = '';
+                        feedback.className = '';
+                        activeLetters.forEach(mesh => scene.remove(mesh));
+                        activeLetters = [];
+
+                        for (let i = 0; i < Math.min(value.length, activePathCoords.length); i++) {
+                            const coord = activePathCoords[i];
+                            const pos = new THREE.Vector3(coord.x * TILE_SIZE, 0, coord.z * TILE_SIZE);
+                            activeLetters.push(createLetterCube(value[i], pos, matWhite));
+                        }
+                    }
+
+                    function submitTeacherAnswer() {
+                        if (!quizData[currentStep]) return;
+                        const entered = answerInput.value.trim().toUpperCase();
+                        if (!entered) return;
+
+                        if (entered !== quizData[currentStep].a) {
+                            applyWrongAnswer(entered);
+                            return;
+                        }
+
+                        applyCorrectAnswer('Ведущий');
+                    }
+
+                    function applyWrongAnswer(entered) {
+                        const word = quizData[currentStep];
+                        clearFixedMeshesForPath(word.path);
+
+                        word.path.forEach((coord, i) => {
+                            const key = `${coord.x},${coord.z}`;
+                            const mesh = createLetterCube(entered[i] || 'X', gridToWorld(coord.x, coord.z, 0), matBad);
+                            fixedLettersMap.set(key, { mesh });
+                            cellStateMap.set(key, 'wrong');
+                        });
+
+                        refreshTiles();
+                        feedback.textContent = 'Ответ пока неверный.';
+                        feedback.className = 'bad';
+                    }
+
+                    function applyCorrectAnswer(sourceName) {
+                        const word = quizData[currentStep];
+                        clearFixedMeshesForPath(word.path);
+
+                        word.path.forEach((coord, i) => {
+                            const key = `${coord.x},${coord.z}`;
+                            const mesh = createLetterCube(word.a[i], gridToWorld(coord.x, coord.z, 0), matGood);
+                            fixedLettersMap.set(key, { mesh });
+                            cellStateMap.set(key, 'correct');
+                       	    socket.emit('word_guessed', {
+        step: currentStep,
+        answer: quizData[currentStep].a
+    });
+}
+
+                        refreshTiles();
+                        feedback.textContent = `Верно: ${sourceName}`;
+                        feedback.className = 'good';
+                        if (questionBox.style.display !== 'block') {
+                            openQuestion();
+                        }
+                        answerInput.value = '';
+                        activeLetters.forEach(mesh => scene.remove(mesh));
+                        activeLetters = [];
+                        teacherState.pendingAdvance = true;
+                    }
+
+                    function finishGame() {
+                        sphere.visible = false;
+                        const sorted = [...students.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
+                        if (sorted.length) {
+                            winnerBanner.style.display = 'block';
+                            winnerBanner.textContent = `Победитель: ${sorted[0].name} (${sorted[0].score})`;
+                            broadcastWinner();
+                        } else {
+                            winnerBanner.style.display = 'block';
+                            winnerBanner.textContent = 'Кроссворд завершен.';
+                        }
+                        teacherStatus.textContent = 'Кроссворд завершен.';
+                    }
+
+                    function clearFixedMeshesForPath(path) {
+                        path.forEach(coord => {
+                            const key = `${coord.x},${coord.z}`;
+                            const existing = fixedLettersMap.get(key);
+                            if (existing) {
+                                scene.remove(existing.mesh);
+                                fixedLettersMap.delete(key);
+                            }
+                        });
+                    }
+
+                    function updateSphereTarget() {
+                        const current = quizData[currentStep];
+                        if (!current) {
+                            sphere.visible = false;
+                            return;
+                        }
+
+                        const a = current.anchor;
+                        targetSpherePos.copy(gridToWorld(a.x, a.z, 1.1));
+                        sphere.visible = true;
+                        activePathCoords = current.path.slice();
+                        refreshTiles();
+
+                        stepCounter.textContent = `Вопрос №${currentStep + 1}`;
+                        questionText.textContent = current.q;
+                        answerMeta.textContent = `Длина ответа: ${current.a.length}`;
+                        teacherState.currentQuestion = `Вопрос ${currentStep + 1}: ${current.q}`;
+                        teacherState.pendingAdvance = false;
+
+                        if (cameraMode === 'word') focusCameraOnWord(current);
+                        else if (cameraMode === 'top') focusCameraTop();
+                    }
+
+                    function focusCameraOnWord(entry) {
+                        const first = entry.path[0];
+                        const last = entry.path[entry.path.length - 1];
+                        const center = new THREE.Vector3(
+                            ((first.x + last.x) * TILE_SIZE) / 2,
+                            0.6,
+                            ((first.z + last.z) * TILE_SIZE) / 2
+                        );
+
+                        const anchor = new THREE.Vector3(entry.anchor.x * TILE_SIZE, 0.6, entry.anchor.z * TILE_SIZE);
+                        const sphereLeft = anchor.clone().sub(center).setY(0).normalize();
+                        if (sphereLeft.lengthSq() === 0) sphereLeft.set(-1, 0, 0);
+                        const forward = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), sphereLeft).normalize();
+                        if (forward.lengthSq() === 0) forward.set(0, 0, 1);
+                        const distance = Math.max(9, entry.a.length * 1.12);
+
+                        desiredCameraTarget.copy(center);
+                        desiredCameraPos.copy(center.clone().add(forward.multiplyScalar(distance)).add(new THREE.Vector3(0, 7.8, 0)));
+                        camera.up.set(0, 1, 0);
+                        cameraAssist = 1;
+                    }
+
+                    function focusCameraTop() {
+                        const center = new THREE.Vector3(
+                            ((layoutBounds.minX + layoutBounds.maxX) * TILE_SIZE) / 2,
+                            0,
+                            ((layoutBounds.minZ + layoutBounds.maxZ) * TILE_SIZE) / 2
+                        );
+                        const width = (layoutBounds.maxX - layoutBounds.minX + 1) * TILE_SIZE;
+                        const depth = (layoutBounds.maxZ - layoutBounds.minZ + 1) * TILE_SIZE;
+                        const span = Math.max(width, depth);
+
+                        desiredCameraTarget.copy(center);
+                        desiredCameraPos.copy(center.clone().add(new THREE.Vector3(0, Math.max(20, span * 1.12), span * 0.08)));
+                        camera.up.set(0, 1, 0);
+                        cameraAssist = 1;
+                    }
+
+                    function openQuestion() {
+                        if (!quizData[currentStep]) return;
+                        questionBox.style.display = 'block';
+                        feedback.textContent = '';
+                        feedback.className = '';
+                        answerInput.focus();
+                    }
+
+                    function closeQuestion() {
+                        questionBox.style.display = 'none';
+                        feedback.textContent = '';
+                        feedback.className = '';
+                        if (teacherState.pendingAdvance) {
+                            teacherState.pendingAdvance = false;
+                            currentStep += 1;
+                            if (currentStep >= quizData.length) {
+                                finishGame();
+                                return;
+                            }
+                            updateSphereTarget();
+                            broadcastQuestion();
+                        }
+                    }
+
+                    function onPointerDown(event) {
+                        pointerDownPos = { x: event.clientX, y: event.clientY };
+                        pointerDragged = false;
+                    }
+
+                    function onPointerMove(event) {
+                        if (!pointerDownPos) return;
+                        if (Math.abs(event.clientX - pointerDownPos.x) > 8 || Math.abs(event.clientY - pointerDownPos.y) > 8) {
+                            pointerDragged = true;
+                        }
+                    }
+
+                    function onPointerUp(event) {
+                        if (!pointerDownPos) return;
+                        const wasDragged = pointerDragged;
+                        pointerDownPos = null;
+                        pointerDragged = false;
+                        if (wasDragged) return;
+                        onSceneClick(event);
+                    }
+
+                    function onSceneClick(event) {
+                        if (!quizData[currentStep] || !sphere.visible) return;
+                        const mouse = new THREE.Vector2(
+                            (event.clientX / window.innerWidth) * 2 - 1,
+                            -(event.clientY / window.innerHeight) * 2 + 1
+                        );
+                        raycaster.setFromCamera(mouse, camera);
+                        const hits = raycaster.intersectObjects(sphere.children);
+                        if (hits.length) {
+                            openQuestion();
+                        }
+                    }
+
+                    function onResize() {
+                        camera.aspect = window.innerWidth / window.innerHeight;
+                        camera.updateProjectionMatrix();
+                        renderer.setSize(window.innerWidth, window.innerHeight);
+                        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.7));
+                    }
+
+                    function animate(now = performance.now()) {
+                        requestAnimationFrame(animate);
+                        const delta = Math.min(0.05, (now - (animate.lastTime || now)) / 1000);
+                        animate.lastTime = now;
+
+                        updateSnake(delta);
+                        renderSnake();
+
+                        if (sphere.visible) {
+                            sphere.position.lerp(targetSpherePos, 0.12);
+                        }
+
+                        if (cameraAssist > 0.001) {
+                            camera.position.lerp(desiredCameraPos, Math.min(1, delta * 2.6));
+                            controls.target.lerp(desiredCameraTarget, Math.min(1, delta * 3.1));
+                            cameraAssist = Math.max(0, cameraAssist - delta * 0.26);
+                        }
+
+                        controls.update();
+                        renderer.render(scene, camera);
+                    }
+
+                    function updateSnake(delta) {
+                        snakeProgress += delta * SNAKE_SPEED;
+                        if (snakeProgress >= 1) {
+                            snakeProgress -= 1;
+                            snakeCurrentGrid = { x: snakeNextGrid.x, z: snakeNextGrid.z };
+                            const choice = chooseNextSnakeTile();
+                            snakeNextGrid = choice;
+                        }
+
+                        const from = gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
+                        const to = gridToWorld(snakeNextGrid.x, snakeNextGrid.z, 0.56);
+                        const headPos = from.clone().lerp(to, snakeProgress);
+
+                        if (headPos.distanceToSquared(lastHeadPoint) >= SNAKE_POINT_STEP * SNAKE_POINT_STEP) {
+                            snakePathPoints.unshift(headPos.clone());
+                            lastHeadPoint.copy(headPos);
+                        } else {
+                            snakePathPoints[0] = headPos.clone();
+                        }
+
+                        const need = SNAKE_SEGMENTS * 4;
+                        while (snakePathPoints.length < need) snakePathPoints.push(headPos.clone());
+                        while (snakePathPoints.length > need) snakePathPoints.pop();
+
+                        snakeAngle = Math.atan2(to.x - from.x, to.z - from.z);
+                    }
+
+                    function chooseNextSnakeTile() {
+                        const dirs = [
+                            { x: 1, z: 0 },
+                            { x: -1, z: 0 },
+                            { x: 0, z: 1 },
+                            { x: 0, z: -1 }
+                        ];
+
+                        const forbidden = expandBounds(layoutBounds, 6);
+                        const recent = new Set(snakeGridPath.slice(0, 10).map(cell => `${cell.x},${cell.z}`));
+                        const options = [];
+
+                        dirs.forEach(dir => {
+                            const candidate = { x: snakeCurrentGrid.x + dir.x, z: snakeCurrentGrid.z + dir.z };
+                            const key = `${candidate.x},${candidate.z}`;
+                            if (Math.abs(candidate.x) > 34 || Math.abs(candidate.z) > 34) return;
+                            if (isInsideBounds(candidate, forbidden)) return;
+                            if (recent.has(key)) return;
+                            options.push(candidate);
+                        });
+
+                        let next = null;
+                        if (options.length) {
+                            const preferred = options
+                                .slice()
+                                .sort((a, b) => snakeTileScore(b, forbidden) - snakeTileScore(a, forbidden))[0];
+                            next = preferred;
+                        } else {
+                            next = findEscapeTile(forbidden);
+                        }
+
+                        snakeGridPath.unshift(next);
+                        if (snakeGridPath.length > 18) snakeGridPath.pop();
+                        return next;
+                    }
+
+                    function snakeTileScore(tile, forbidden) {
+                        const centerDist = Math.abs(tile.x) + Math.abs(tile.z);
+                        const dx = tile.x < forbidden.minX ? forbidden.minX - tile.x : tile.x > forbidden.maxX ? tile.x - forbidden.maxX : 0;
+                        const dz = tile.z < forbidden.minZ ? forbidden.minZ - tile.z : tile.z > forbidden.maxZ ? tile.z - forbidden.maxZ : 0;
+                        return dx + dz + centerDist * 0.05 + Math.random() * 0.4;
+                    }
+
+                    function findEscapeTile(forbidden) {
+                        const candidates = [
+                            { x: snakeCurrentGrid.x + 1, z: snakeCurrentGrid.z },
+                            { x: snakeCurrentGrid.x - 1, z: snakeCurrentGrid.z },
+                            { x: snakeCurrentGrid.x, z: snakeCurrentGrid.z + 1 },
+                            { x: snakeCurrentGrid.x, z: snakeCurrentGrid.z - 1 },
+                            { x: snakeCurrentGrid.x + 2, z: snakeCurrentGrid.z },
+                            { x: snakeCurrentGrid.x - 2, z: snakeCurrentGrid.z }
+                        ].filter(tile => !isInsideBounds(tile, forbidden));
+
+                        if (candidates.length) return candidates[0];
+
+                        return { x: -28, z: 22 };
+                    }
+
+                    function renderSnake() {
+                        const headPos = snakePathPoints[0] || gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
+                        snakeHead.position.copy(headPos);
+                        snakeHead.rotation.y = snakeAngle;
+
+                        let count = 0;
+                        for (let i = 0; i < SNAKE_SEGMENTS; i++) {
+                            const idx = Math.min(snakePathPoints.length - 1, i * 3);
+                            const pos = snakePathPoints[idx];
+                            const next = snakePathPoints[Math.min(snakePathPoints.length - 1, idx + 1)] || pos;
+                            const t = i / Math.max(1, SNAKE_SEGMENTS - 1);
+                            const radius = 1.04 - t * 0.72;
+
+                            snakeDummy.position.copy(pos);
+                            snakeDummy.position.y = 0.42 - t * 0.1;
+                            snakeDummy.scale.set(Math.max(0.14, radius), Math.max(0.09, radius * 0.54), Math.max(0.18, radius * 1.18));
+                            snakeDummy.lookAt(next);
+                            snakeDummy.updateMatrix();
+                            snakeBody.setMatrixAt(i, snakeDummy.matrix);
+                            count++;
+                        }
+                        snakeBody.count = count;
+                        snakeBody.instanceMatrix.needsUpdate = true;
+                    }
+                }
+
+                function normalizeWord(value) {
+                    return String(value || '')
+                        .toUpperCase()
+                        .replace(/Ё/g, 'Е')
+                        .replace(/[^A-ZА-Я0-9]/g, '');
+                }
+
+                function normalizePlayerName(value) {
+                    const banned = ['ХУЙ', 'ПИЗД', 'ЕБ', 'БЛЯ', 'СУКА', 'МУД', 'FUCK', 'BITCH', 'DICK'];
+                    let cleaned = String(value || '')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .slice(0, 24);
+                    if (!cleaned) return '';
+                    const upper = cleaned.toUpperCase().replace(/Ё/g, 'Е');
+                    if (banned.some(word => upper.includes(word))) {
+                        return '';
+                    }
+                    return cleaned;
+                }
+
+                function escapeHtml(value) {
+                    return String(value || '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                function gridToWorld(x, z, y) {
+                    return new THREE.Vector3(x * TILE_SIZE, y || 0, z * TILE_SIZE);
+                }
+
+                function expandBounds(bounds, margin) {
+                    return {
+                        minX: bounds.minX - margin,
+                        maxX: bounds.maxX + margin,
+                        minZ: bounds.minZ - margin,
+                        maxZ: bounds.maxZ + margin
+                    };
+                }
+
+                function isInsideBounds(point, bounds) {
+                    return point.x >= bounds.minX && point.x <= bounds.maxX && point.z >= bounds.minZ && point.z <= bounds.maxZ;
+                }
+            } catch (error) {
+                const bootErrorEl = document.getElementById('boot-error');
+                bootErrorEl.style.display = 'block';
+                bootErrorEl.textContent = `Ошибка запуска:\n${error.message}`;
+            }
+        })();
+    </script>
+</body>
+</html>
