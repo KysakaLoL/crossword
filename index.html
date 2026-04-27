@@ -1,23 +1,11 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <script src="/socket.io/socket.io.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D Crossword Snake Classroom</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-		canvas {
- 		   display: block;
-		    touch-action: none; /* Запрещает браузеру листать страницу пальцем на холсте */
- 		   user-select: none;
- 		   -webkit-user-select: none;
-		}
-		#ui-container { 
-		    pointer-events: none; 
-		}
-		#ui-container > * { 
- 		   pointer-events: auto; /* Разрешаем кликать только по кнопкам/инпутам */
-		}
         :root {
             --bg: #e9edf2;
             --panel: rgba(255, 255, 255, 0.92);
@@ -35,12 +23,20 @@
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
             overflow: hidden;
             background: radial-gradient(circle at top, #f7fafc 0%, var(--bg) 54%, #dbe3ea 100%);
             font-family: "Segoe UI", sans-serif;
             color: var(--text);
+        }
+
+        canvas {
+            display: block;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         button,
@@ -56,15 +52,18 @@
             color: #fff;
             font-weight: 700;
             cursor: pointer;
+            box-shadow: 0 10px 24px rgba(0, 159, 245, 0.22);
         }
 
         button.secondary {
             background: #879aac;
+            box-shadow: none;
         }
 
         button.ghost {
             background: #eef5fb;
             color: var(--text);
+            box-shadow: none;
         }
 
         input[type="text"] {
@@ -107,21 +106,25 @@
             top: 16px;
             left: 16px;
             z-index: 20;
-            width: min(360px, calc(100vw - 32px));
+            width: min(380px, calc(100vw - 32px));
             padding: 16px;
         }
 
-        #teacher-topline {
+        #teacher-topline,
+        #camera-actions,
+        #answer-actions,
+        #start-actions,
+        #student-answer-actions {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+        }
+
+        #teacher-topline {
             margin-bottom: 10px;
         }
 
         #camera-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
             margin-top: 10px;
         }
 
@@ -148,7 +151,8 @@
             margin: 0;
         }
 
-        #score-list {
+        #score-list,
+        #student-board {
             margin-top: 10px;
             display: grid;
             gap: 8px;
@@ -162,6 +166,7 @@
             background: #f4f8fb;
             padding: 9px 12px;
             font-weight: 600;
+            gap: 12px;
         }
 
         .score-actions {
@@ -177,6 +182,7 @@
             color: var(--text);
             font-size: 0.82rem;
             line-height: 1;
+            box-shadow: none;
         }
 
         .mini-btn.danger {
@@ -189,7 +195,7 @@
             top: 20px;
             left: 16px;
             z-index: 30;
-            width: min(420px, calc(100vw - 32px));
+            width: min(430px, calc(100vw - 32px));
             padding: 16px;
             display: none;
         }
@@ -224,13 +230,6 @@
 
         #feedback.bad {
             color: var(--danger);
-        }
-
-        #answer-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 12px;
         }
 
         #keyboard {
@@ -286,35 +285,27 @@
             display: block;
         }
 
-        #start-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 16px;
-        }
-
-        #winner-banner {
-            position: fixed;
-            inset: auto 16px 16px 16px;
-            z-index: 90;
-            display: none;
-            padding: 16px 18px;
-            background: rgba(18, 42, 31, 0.94);
-            color: #f5fff9;
-            border-radius: 18px;
-            box-shadow: 0 16px 40px rgba(18, 42, 31, 0.24);
-        }
-
+        #winner-banner,
         #boot-error {
             position: fixed;
+            left: 16px;
             right: 16px;
             bottom: 16px;
             z-index: 200;
             display: none;
+            padding: 16px 18px;
+            border-radius: 18px;
+        }
+
+        #winner-banner {
+            background: rgba(18, 42, 31, 0.94);
+            color: #f5fff9;
+            box-shadow: 0 16px 40px rgba(18, 42, 31, 0.24);
+        }
+
+        #boot-error {
+            left: auto;
             max-width: min(560px, calc(100vw - 32px));
-            padding: 14px 16px;
-            border-radius: 16px;
             background: rgba(93, 18, 18, 0.96);
             color: #fff2f2;
             white-space: pre-wrap;
@@ -346,19 +337,6 @@
             margin-top: 8px;
             font-weight: 700;
             color: var(--accent-dark);
-        }
-
-        #student-answer-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-
-        #student-board {
-            margin-top: 16px;
-            display: grid;
-            gap: 8px;
         }
 
         @media (max-width: 800px) {
@@ -406,7 +384,7 @@
             <div id="question-text">Загрузите файл, чтобы начать.</div>
             <div id="answer-meta">Длина ответа: 0</div>
             <input type="text" id="answer-input" placeholder="Ответ ведущего" autocomplete="off">
-            <div id="question-help">Окно стоит сбоку, чтобы не перекрывать слово. Красная сфера слева от ответа открывает вопрос.</div>
+            <div id="question-help">Красная сфера стоит за один блок до начала слова. Нажмите на сферу, чтобы открыть вопрос.</div>
             <div id="answer-actions">
                 <button id="submit-answer" type="button">Ответить</button>
                 <button id="close-question" type="button" class="secondary">Закрыть</button>
@@ -446,7 +424,7 @@
     <div id="start-overlay">
         <div id="start-card" class="glass">
             <h1 style="font-size:1.65rem;">Подключение по QR</h1>
-            <div style="margin-top:10px; color:var(--muted); line-height:1.45;">Перед стартом ведущий показывает QR-код. Ученики открывают тот же файл по ссылке и попадают в режим ответа.</div>
+            <div style="margin-top:10px; color:var(--muted); line-height:1.45;">Перед стартом ведущий показывает QR-код. Ученики открывают тот же адрес и попадают в режим ответа.</div>
             <div id="qr-box"></div>
             <div id="qr-url" style="word-break:break-all; color:#42617d; font-size:0.92rem;"></div>
             <div id="qr-note" style="margin-top:10px; color:var(--muted); font-size:0.92rem;"></div>
@@ -460,26 +438,19 @@
     <div id="winner-banner"></div>
     <div id="boot-error"></div>
 
-    <script>
-        window.addEventListener('error', event => {
-            const el = document.getElementById('boot-error');
-            el.style.display = 'block';
-            el.textContent = `Ошибка запуска:\n${event.message}`;
-        });
-    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>
-	const socket = io();
+        const socket = typeof io === 'function' ? io() : null;
 
-// Слушаем сообщения от других игроков
-socket.on('sync_word', (data) => {
-    console.log("Другой игрок отгадал слово:", data);
-    // Здесь вызываем твою функцию отрисовки слова в 3D
-    // Например: forceApplyAnswer(data.step, data.answer);
-});
+        window.addEventListener('error', (event) => {
+            const el = document.getElementById('boot-error');
+            el.style.display = 'block';
+            el.textContent = 'Ошибка запуска:\n' + event.message;
+        });
+
         (() => {
             try {
                 const params = new URLSearchParams(location.search);
@@ -496,7 +467,6 @@ socket.on('sync_word', (data) => {
                 const teacherRoot = document.getElementById('teacher-root');
                 const studentRoot = document.getElementById('student-root');
                 const startOverlay = document.getElementById('start-overlay');
-                const bootError = document.getElementById('boot-error');
 
                 if (isStudent) {
                     teacherRoot.style.display = 'none';
@@ -536,25 +506,23 @@ socket.on('sync_word', (data) => {
                         board.slice(0, 8).forEach((item, idx) => {
                             const row = document.createElement('div');
                             row.className = 'score-row';
-                            row.innerHTML = `<span>${idx + 1}. ${escapeHtml(item.name)}</span><span>${item.score}</span>`;
+                            row.innerHTML = '<span>' + (idx + 1) + '. ' + escapeHtml(item.name) + '</span><span>' + item.score + '</span>';
                             boardEl.appendChild(row);
                         });
                     }
 
                     function sendAnswer() {
-    // Добавили пропущенные "if" перед скобками
-    if (!conn || conn.open !== true) return;
-    
-    const answer = answerInput.value.trim().toUpperCase();
-    
-    if (!answer) return;
-    
-    conn.send({ type: 'answer', answer: answer });
-    answerInput.value = '';
-}
+                        if (!conn || conn.open !== true) return;
+
+                        const answer = answerInput.value.trim().toUpperCase();
+                        if (!answer) return;
+
+                        conn.send({ type: 'answer', answer: answer });
+                        answerInput.value = '';
+                    }
 
                     function playRemoteTone() {
-                         if (!audioEnabled) {
+                        if (!audioEnabled) {
                             status.textContent = 'Ведущий отправил звук, но на телефоне он еще не разрешен.';
                             return;
                         }
@@ -589,6 +557,7 @@ socket.on('sync_word', (data) => {
                                 ]
                             }
                         });
+
                         status.textContent = 'Подключаемся...';
                         peer.on('open', () => {
                             conn = peer.connect(hostId, { reliable: true });
@@ -598,27 +567,17 @@ socket.on('sync_word', (data) => {
                                 joinPanel.style.display = 'none';
                                 gamePanel.style.display = 'block';
                             });
-                            conn.on('data', data => {
+                            conn.on('data', (data) => {
                                 if (!data || typeof data !== 'object') return;
-                                if (data.type === 'question') {
-                                    questionEl.textContent = data.question || 'Ожидаем вопрос...';
-                                }
+                                if (data.type === 'question') questionEl.textContent = data.question || 'Ожидаем вопрос...';
                                 if (data.type === 'score') {
                                     myScore = data.score || 0;
-                                    scoreEl.textContent = `Очки: ${myScore}`;
+                                    scoreEl.textContent = 'Очки: ' + myScore;
                                 }
-                                if (data.type === 'board') {
-                                    renderBoard(data.board || []);
-                                }
-                                if (data.type === 'message') {
-                                    status.textContent = data.text || '';
-                                }
-                                if (data.type === 'winner') {
-                                    questionEl.textContent = `Победитель: ${data.name}`;
-                                }
-                                if (data.type === 'playTone') {
-                                    playRemoteTone();
-                                }
+                                if (data.type === 'board') renderBoard(data.board || []);
+                                if (data.type === 'message') status.textContent = data.text || '';
+                                if (data.type === 'winner') questionEl.textContent = 'Победитель: ' + data.name;
+                                if (data.type === 'playTone') playRemoteTone();
                                 if (data.type === 'kicked') {
                                     status.textContent = 'Ведущий отключил это подключение.';
                                     if (conn) conn.close();
@@ -628,18 +587,13 @@ socket.on('sync_word', (data) => {
                                 status.textContent = 'Не удалось подключиться к ведущему.';
                             });
                         });
-                        peer.on('error', err => {
-                            status.textContent = `Ошибка подключения: ${err.message}`;
+                        peer.on('error', (err) => {
+                            status.textContent = 'Ошибка подключения: ' + err.message;
                         });
                     });
 
-
-
-
-
-
                     answerButton.addEventListener('click', sendAnswer);
-                    answerInput.addEventListener('keypress', event => {
+                    answerInput.addEventListener('keypress', (event) => {
                         if (event.key === 'Enter') sendAnswer();
                     });
                     enableAudioButton.addEventListener('click', async () => {
@@ -650,7 +604,7 @@ socket.on('sync_word', (data) => {
                             await audioCtx.resume();
                             audioEnabled = true;
                             status.textContent = 'Звук разрешен.';
-                        } catch (_) {
+                        } catch (error) {
                             status.textContent = 'Не удалось включить звук.';
                         }
                     });
@@ -696,6 +650,8 @@ socket.on('sync_word', (data) => {
                     let occupiedLetterMap = new Map();
                     let activeLetters = [];
                     let activePathCoords = [];
+                    let feedbackMeshes = [];
+                    let wrongPreviewKeys = new Set();
                     let currentStep = 0;
                     let originalQuizData = [];
                     let quizData = [];
@@ -708,36 +664,16 @@ socket.on('sync_word', (data) => {
                     let raycaster = new THREE.Raycaster();
                     let pointerDownPos = null;
                     let pointerDragged = false;
+                    let answerAdvanceTimer = null;
 
                     let peer;
                     let hostId = '';
                     let studentCounter = 1;
                     const students = new Map();
 
-					function initControls() {
-    if (THREE.OrbitControls) {
-        controls = new THREE.OrbitControls(camera, renderer.domElement);
-        
-        controls.enableDamping = true; 
-        controls.dampingFactor = 0.05;
-        controls.rotateSpeed = 1.0; 
-        
-        controls.enableZoom = true;
-        controls.enablePan = true; 
-        
-        controls.minDistance = 5;
-        controls.maxDistance = 50;
-        
-        controls.domElement.style.touchAction = 'none';
-    } else {
-        console.error("Ошибка: OrbitControls не загружены. Проверьте подключение скрипта в head.");
-    }
-}
-					
                     const teacherState = {
                         currentQuestion: '',
-                        solved: false,
-                        pendingAdvance: false
+                        solved: false
                     };
 
                     const matWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.05 });
@@ -749,6 +685,15 @@ socket.on('sync_word', (data) => {
                     initKeyboard();
                     bindUi();
                     animate();
+
+                    window.__applySyncedWord = (data) => {
+                        if (!data || typeof data !== 'object') return;
+                        const word = quizData[currentStep];
+                        if (!word || teacherState.solved) return;
+                        if (Number(data.step) !== currentStep) return;
+                        if (normalizeWord(data.answer) !== word.a) return;
+                        applyCorrectAnswer(data.user || 'Игрок', true);
+                    };
 
                     function initScene() {
                         scene = new THREE.Scene();
@@ -763,8 +708,9 @@ socket.on('sync_word', (data) => {
                         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.7));
                         renderer.shadowMap.enabled = !isMobile;
                         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-                        document.body.appendChild(renderer.domElement);
                         renderer.domElement.style.touchAction = 'none';
+                        renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault());
+                        document.body.appendChild(renderer.domElement);
 
                         controls = new THREE.OrbitControls(camera, renderer.domElement);
                         controls.enableDamping = true;
@@ -775,6 +721,12 @@ socket.on('sync_word', (data) => {
                         controls.minDistance = 10;
                         controls.maxDistance = 90;
                         controls.screenSpacePanning = true;
+                        controls.enableRotate = true;
+                        controls.enablePan = true;
+                        controls.enableZoom = true;
+                        controls.rotateSpeed = 0.95;
+                        controls.panSpeed = 1.05;
+                        controls.zoomSpeed = 1.05;
                         controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
                         controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
                         controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
@@ -818,52 +770,6 @@ socket.on('sync_word', (data) => {
                         buildSnakeVisuals();
                     }
 
-					function drawWordOnGrid(wordEntry) {
-    if (!wordEntry || !wordEntry.a) return;
-
-    const chars = wordEntry.a.toUpperCase().split('');
-    const x = wordEntry.x;
-    const z = wordEntry.z;
-    const dir = wordEntry.direction || wordEntry.dir; // Проверь, как называется поле в quizData
-
-    chars.forEach((char, i) => {
-        const cx = (dir === 'across') ? x + i : x;
-        const cz = (dir === 'down') ? z + i : z;
-
-        // ВЫЗОВ СОЗДАНИЯ КУБА
-        createLetterTile(cx, cz, char); 
-    });
-}
-
-// Не забудь про вторую функцию, на которую ругалась консоль!
-function nextQuestion() {
-    currentStep++;
-    if (currentStep < quizData.length) {
-        const nextWord = quizData[currentStep];
-        // Обнови текст вопроса на экране
-        document.getElementById('question-text').textContent = nextWord.q;
-        // Если есть сфера/указатель, перемести её
-        updateTargetSphere(nextWord);
-    } else {
-        alert("Кроссворд пройден!");
-    }
-}
-					// Функция-помощник для создания одного кубика с буквой
-function createLetterTile(x, z, letter) {
-    const size = 0.95;
-    const geometry = new THREE.BoxGeometry(size, size, size);
-    const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const mesh = new THREE.Mesh(geometry, material);
-    
-    // Устанавливаем позицию (Y обычно 0, если сетка плоская)
-    mesh.position.set(x, 0, z);
-    scene.add(mesh);
-
-    // Здесь также должен быть код для добавления текста на кубик
-    // Но для начала проверим хотя бы появление кубиков
-}
-
-					
                     function buildSnakeVisuals() {
                         const headMat = new THREE.MeshPhysicalMaterial({
                             color: 0x00aa44,
@@ -934,16 +840,17 @@ function createLetterTile(x, z, letter) {
                                 ]
                             }
                         });
-                        peer.on('open', id => {
+
+                        peer.on('open', (id) => {
                             hostId = id;
                             updateQr();
                         });
-                        peer.on('connection', conn => {
-                            conn.on('data', data => handleStudentMessage(conn, data));
+                        peer.on('connection', (conn) => {
+                            conn.on('data', (data) => handleStudentMessage(conn, data));
                             conn.on('close', () => removeStudentByConn(conn));
                         });
-                        peer.on('error', err => {
-                            joinLinkEl.textContent = `Ошибка PeerJS: ${err.message}`;
+                        peer.on('error', (err) => {
+                            joinLinkEl.textContent = 'Ошибка PeerJS: ' + err.message;
                         });
                     }
 
@@ -981,32 +888,31 @@ function createLetterTile(x, z, letter) {
                                 name: normalizePlayerName(data.name || ''),
                                 score: 0
                             };
-                            if (!player.name) {
-                                player.name = `Игрок ${studentCounter++}`;
-                            }
+                            if (!player.name) player.name = 'Игрок ' + studentCounter++;
                             students.set(conn.peer, player);
                             sendBoard();
                             conn.send({ type: 'message', text: 'Подключение успешно.' });
                             conn.send({ type: 'score', score: player.score });
                             conn.send({ type: 'question', question: teacherState.currentQuestion || 'Ожидаем первый вопрос...' });
-                            teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                            teacherStatus.textContent = 'Подключено учеников: ' + students.size;
                             return;
                         }
 
                         if (data.type === 'answer') {
                             const student = students.get(conn.peer);
-                            if (!student || !quizData[currentStep] || teacherState.solved) return;
+                            const word = quizData[currentStep];
+                            if (!student || !word || teacherState.solved) return;
 
-                            const answer = String(data.answer || '').trim().toUpperCase();
+                            const answer = normalizeWord(data.answer || '');
                             if (!answer) return;
 
-                            if (answer === quizData[currentStep].a) {
+                            if (answer === word.a) {
                                 teacherState.solved = true;
                                 student.score += 1;
                                 conn.send({ type: 'message', text: 'Верно. Балл начислен.' });
                                 conn.send({ type: 'score', score: student.score });
                                 sendBoard();
-                                applyCorrectAnswer(student.name);
+                                applyCorrectAnswer(student.name, false);
                             } else {
                                 conn.send({ type: 'message', text: 'Пока неверно.' });
                             }
@@ -1015,20 +921,20 @@ function createLetterTile(x, z, letter) {
 
                     function removeStudentByConn(conn) {
                         if (students.delete(conn.peer)) {
-                            teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                            teacherStatus.textContent = 'Подключено учеников: ' + students.size;
                             sendBoard();
                         }
                     }
 
                     function sendBoard() {
-                        const list = [...students.values()]
+                        const list = Array.from(students.values())
                             .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
-                            .map(item => ({ id: item.id, name: item.name, score: item.score }));
+                            .map((item) => ({ id: item.id, name: item.name, score: item.score }));
 
                         renderTeacherBoard(list);
-                        students.forEach(student => {
+                        students.forEach((student) => {
                             if (student.conn.open) {
-                                student.conn.send({ type: 'board', board: list.map(item => ({ name: item.name, score: item.score })) });
+                                student.conn.send({ type: 'board', board: list.map((item) => ({ name: item.name, score: item.score })) });
                             }
                         });
                     }
@@ -1044,23 +950,22 @@ function createLetterTile(x, z, letter) {
                         list.forEach((item, idx) => {
                             const row = document.createElement('div');
                             row.className = 'score-row';
-                            row.innerHTML = `<span>${idx + 1}. ${escapeHtml(item.name)}</span><div class="score-actions"><span>${item.score}</span><button type="button" class="mini-btn" data-action="tone" data-peer="${item.id}">Звук</button><button type="button" class="mini-btn danger" data-action="kick" data-peer="${item.id}">Удалить</button></div>`;
+                            row.innerHTML = '<span>' + (idx + 1) + '. ' + escapeHtml(item.name) + '</span>'
+                                + '<div class="score-actions"><span>' + item.score + '</span>'
+                                + '<button type="button" class="mini-btn" data-action="tone" data-peer="' + item.id + '">Звук</button>'
+                                + '<button type="button" class="mini-btn danger" data-action="kick" data-peer="' + item.id + '">Удалить</button></div>';
                             scoreList.appendChild(row);
                         });
 
-                        scoreList.querySelectorAll('button[data-action="tone"]').forEach(button => {
+                        scoreList.querySelectorAll('button[data-action="tone"]').forEach((button) => {
                             button.addEventListener('click', () => {
                                 const student = students.get(button.dataset.peer);
-                                if (student && student.conn.open) {
-                                    student.conn.send({ type: 'playTone' });
-                                }
+                                if (student && student.conn.open) student.conn.send({ type: 'playTone' });
                             });
                         });
 
-                        scoreList.querySelectorAll('button[data-action="kick"]').forEach(button => {
-                            button.addEventListener('click', () => {
-                                kickStudent(button.dataset.peer);
-                            });
+                        scoreList.querySelectorAll('button[data-action="kick"]').forEach((button) => {
+                            button.addEventListener('click', () => kickStudent(button.dataset.peer));
                         });
                     }
 
@@ -1072,31 +977,27 @@ function createLetterTile(x, z, letter) {
                             student.conn.close();
                         }
                         students.delete(peerId);
-                        teacherStatus.textContent = `Подключено учеников: ${students.size}`;
+                        teacherStatus.textContent = 'Подключено учеников: ' + students.size;
                         sendBoard();
                     }
 
                     function broadcastQuestion() {
                         const text = quizData[currentStep]
-                            ? `Вопрос ${currentStep + 1}: ${quizData[currentStep].q}`
+                            ? 'Вопрос ' + (currentStep + 1) + ': ' + quizData[currentStep].q
                             : 'Кроссворд завершен.';
                         teacherState.currentQuestion = text;
                         teacherState.solved = false;
-                        students.forEach(student => {
-                            if (student.conn.open) {
-                                student.conn.send({ type: 'question', question: text });
-                            }
+                        students.forEach((student) => {
+                            if (student.conn.open) student.conn.send({ type: 'question', question: text });
                         });
                     }
 
                     function broadcastWinner() {
-                        const sorted = [...students.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
+                        const sorted = Array.from(students.values()).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
                         const winner = sorted[0];
                         if (!winner) return;
-                        students.forEach(student => {
-                            if (student.conn.open) {
-                                student.conn.send({ type: 'winner', name: winner.name });
-                            }
+                        students.forEach((student) => {
+                            if (student.conn.open) student.conn.send({ type: 'winner', name: winner.name });
                         });
                     }
 
@@ -1117,6 +1018,10 @@ function createLetterTile(x, z, letter) {
                         document.getElementById('camera-free-btn').addEventListener('click', () => {
                             cameraMode = 'free';
                             cameraAssist = 0;
+                            controls.enabled = true;
+                            controls.enableRotate = true;
+                            controls.enablePan = true;
+                            controls.enableZoom = true;
                         });
                         document.getElementById('start-local-btn').addEventListener('click', () => {
                             startOverlay.style.display = 'none';
@@ -1126,11 +1031,13 @@ function createLetterTile(x, z, letter) {
                             if (!text) return;
                             try {
                                 await navigator.clipboard.writeText(text);
-                            } catch (_) {}
+                            } catch (error) {
+                                teacherStatus.textContent = 'Не удалось скопировать ссылку.';
+                            }
                         });
                         document.getElementById('submit-answer').addEventListener('click', submitTeacherAnswer);
                         document.getElementById('close-question').addEventListener('click', closeQuestion);
-                        answerInput.addEventListener('keypress', event => {
+                        answerInput.addEventListener('keypress', (event) => {
                             if (event.key === 'Enter') submitTeacherAnswer();
                         });
                         answerInput.addEventListener('input', updateTypedPreview);
@@ -1140,7 +1047,7 @@ function createLetterTile(x, z, letter) {
                         window.addEventListener('pointermove', onPointerMove, { passive: true });
                         window.addEventListener('pointerup', onPointerUp, { passive: true });
                         window.addEventListener('resize', onResize);
-                        window.addEventListener('keydown', event => {
+                        window.addEventListener('keydown', (event) => {
                             if (event.key === 'Escape') closeQuestion();
                         });
                     }
@@ -1148,7 +1055,7 @@ function createLetterTile(x, z, letter) {
                     function initKeyboard() {
                         const keyboard = document.getElementById('keyboard');
                         const letters = 'ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮ'.split('');
-                        letters.forEach(ch => {
+                        letters.forEach((ch) => {
                             const key = document.createElement('div');
                             key.className = 'key';
                             key.textContent = ch;
@@ -1173,10 +1080,11 @@ function createLetterTile(x, z, letter) {
                     async function loadCrosswordFromFile(event) {
                         const file = event.target.files && event.target.files[0];
                         if (!file) return;
+
                         const text = await file.text();
                         const lines = text
                             .split(/\r?\n/)
-                            .map(line => line.trim())
+                            .map((line) => line.trim())
                             .filter(Boolean);
 
                         const parsed = [];
@@ -1197,25 +1105,34 @@ function createLetterTile(x, z, letter) {
                             return;
                         }
 
-                        fixedLettersMap.forEach(item => scene.remove(item.mesh));
-                        fixedLettersMap.clear();
-                        clearActiveLetters();
-                        cellStateMap.clear();
-                        occupiedLetterMap.clear();
-                        currentStep = 0;
-                        winnerBanner.style.display = 'none';
-
+                        resetBoardState();
                         buildLayout();
-                        teacherStatus.textContent = `Кроссворд готов: ${quizData.length} слов.`;
+                        teacherStatus.textContent = 'Кроссворд готов: ' + quizData.length + ' слов.';
                         updateSphereTarget();
                         focusCameraTop();
                         broadcastQuestion();
                     }
 
+                    function resetBoardState() {
+                        fixedLettersMap.forEach((item) => scene.remove(item.mesh));
+                        fixedLettersMap.clear();
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
+                        cellStateMap.clear();
+                        occupiedLetterMap.clear();
+                        currentStep = 0;
+                        winnerBanner.style.display = 'none';
+                        teacherState.solved = false;
+                        teacherState.currentQuestion = '';
+                        answerInput.value = '';
+                        feedback.textContent = '';
+                        feedback.className = '';
+                    }
+
                     function buildLayout() {
                         if (!originalQuizData.length) return;
 
-                        const entries = originalQuizData.map(item => ({
+                        const entries = originalQuizData.map((item) => ({
                             q: item.q,
                             a: item.a,
                             originalIndex: item.originalIndex,
@@ -1254,7 +1171,7 @@ function createLetterTile(x, z, letter) {
                         for (let i = 0; i < entry.a.length; i++) {
                             const cx = x + dx * i;
                             const cz = z + dz * i;
-                            const key = `${cx},${cz}`;
+                            const key = cx + ',' + cz;
                             entry.path.push({ x: cx, z: cz });
                             const existing = occupied.get(key);
                             if (existing) {
@@ -1272,7 +1189,7 @@ function createLetterTile(x, z, letter) {
                     function findBestPlacement(entry, placed, occupied) {
                         let best = null;
 
-                        placed.forEach(other => {
+                        placed.forEach((other) => {
                             for (let i = 0; i < entry.a.length; i++) {
                                 for (let j = 0; j < other.a.length; j++) {
                                     if (entry.a[i] !== other.a[j]) continue;
@@ -1284,20 +1201,13 @@ function createLetterTile(x, z, letter) {
                                     const score = validatePlacement(entry, x, z, dir, occupied, true);
                                     if (score == null) continue;
 
-                                    if (!best || score > best.score) {
-                                        best = { x, z, dir, score };
-                                    }
+                                    if (!best || score > best.score) best = { x: x, z: z, dir: dir, score: score };
                                 }
                             }
                         });
 
                         return best;
                     }
-
-
-
-
-
 
                     function validatePlacement(entry, x, z, dir, occupied, requireCross) {
                         const dx = dir === 'across' ? 1 : 0;
@@ -1314,7 +1224,7 @@ function createLetterTile(x, z, letter) {
                         for (let i = 0; i < entry.a.length; i++) {
                             const cx = x + dx * i;
                             const cz = z + dz * i;
-                            const key = `${cx},${cz}`;
+                            const key = cx + ',' + cz;
                             const existing = occupied.get(key);
                             const char = entry.a[i];
 
@@ -1328,13 +1238,13 @@ function createLetterTile(x, z, letter) {
                                 if (existing.dirs && existing.dirs.has(dir)) return null;
                                 overlaps += 1;
                             } else {
-                                if (occupied.has(`${cx + perpA.x},${cz + perpA.z}`)) return null;
-                                if (occupied.has(`${cx + perpB.x},${cz + perpB.z}`)) return null;
+                                if (occupied.has((cx + perpA.x) + ',' + (cz + perpA.z))) return null;
+                                if (occupied.has((cx + perpB.x) + ',' + (cz + perpB.z))) return null;
                             }
                         }
 
-                        const beforeKey = `${x - dx},${z - dz}`;
-                        const afterKey = `${x + dx * entry.a.length},${z + dz * entry.a.length}`;
+                        const beforeKey = (x - dx) + ',' + (z - dz);
+                        const afterKey = (x + dx * entry.a.length) + ',' + (z + dz * entry.a.length);
                         if (occupied.has(beforeKey) || occupied.has(afterKey)) return null;
                         if (requireCross && overlaps === 0) return null;
 
@@ -1366,28 +1276,27 @@ function createLetterTile(x, z, letter) {
                         for (let i = 0; i < dirs.length; i++) {
                             const dir = dirs[i];
                             const score = validatePlacement(entry, x, z, dir, occupied, false);
-                            if (score != null) {
-                                return { x, z, dir, score };
-                            }
+                            if (score != null) return { x: x, z: z, dir: dir, score: score };
                         }
                         return null;
                     }
 
                     function buildTilesFromLayout() {
-                        tileMap.forEach(tile => scene.remove(tile.base));
+                        tileMap.forEach((tile) => scene.remove(tile.base));
                         tileMap.clear();
                         while (frameGroup.children.length) {
                             frameGroup.remove(frameGroup.children[0]);
                         }
-                        fixedLettersMap.forEach(item => scene.remove(item.mesh));
+                        fixedLettersMap.forEach((item) => scene.remove(item.mesh));
                         fixedLettersMap.clear();
 
-                        const normalMatFactory = () => new THREE.MeshStandardMaterial({ color: 0x1a3a5a, roughness: 0.42, metalness: 0.05 });
                         const frameMat = new THREE.MeshBasicMaterial({ color: 0x6fdcff, transparent: true, opacity: 0.34 });
                         layoutBounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
 
                         occupiedLetterMap.forEach((value, key) => {
-                            const [x, z] = key.split(',').map(Number);
+                            const parts = key.split(',').map(Number);
+                            const x = parts[0];
+                            const z = parts[1];
                             layoutBounds.minX = Math.min(layoutBounds.minX, x);
                             layoutBounds.maxX = Math.max(layoutBounds.maxX, x);
                             layoutBounds.minZ = Math.min(layoutBounds.minZ, z);
@@ -1395,17 +1304,18 @@ function createLetterTile(x, z, letter) {
 
                             const base = new THREE.Mesh(
                                 new THREE.BoxGeometry(TILE_SIZE - 0.16, 0.18, TILE_SIZE - 0.16),
-                                normalMatFactory()
+                                new THREE.MeshStandardMaterial({ color: 0x1a3a5a, roughness: 0.42, metalness: 0.05 })
                             );
                             base.position.set(x * TILE_SIZE, 0.09, z * TILE_SIZE);
-                            base.castShadow = false;
                             base.receiveShadow = !isMobile;
                             scene.add(base);
+
                             const frame = new THREE.Mesh(new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE), frameMat.clone());
                             frame.rotation.x = -Math.PI / 2;
                             frame.position.set(x * TILE_SIZE, 0.015, z * TILE_SIZE);
                             frameGroup.add(frame);
-                            tileMap.set(key, { base, frame });
+
+                            tileMap.set(key, { base: base, frame: frame });
                         });
 
                         refreshTiles();
@@ -1414,7 +1324,7 @@ function createLetterTile(x, z, letter) {
                     function refreshTiles() {
                         tileMap.forEach((tile, key) => {
                             const state = cellStateMap.get(key) || 'empty';
-                            const isActive = activePathCoords.some(coord => `${coord.x},${coord.z}` === key);
+                            const isActive = activePathCoords.some((coord) => (coord.x + ',' + coord.z) === key);
 
                             if (state === 'correct') tile.base.material.color.set(0x16c977);
                             else if (state === 'wrong') tile.base.material.color.set(0xe45858);
@@ -1424,9 +1334,17 @@ function createLetterTile(x, z, letter) {
                     }
 
                     function clearActiveLetters() {
-                        activeLetters.forEach(mesh => scene.remove(mesh));
+                        activeLetters.forEach((mesh) => scene.remove(mesh));
                         activeLetters = [];
-                        activePathCoords = [];
+                    }
+
+                    function clearFeedbackMeshes() {
+                        feedbackMeshes.forEach((mesh) => scene.remove(mesh));
+                        feedbackMeshes = [];
+                        wrongPreviewKeys.forEach((key) => {
+                            if (cellStateMap.get(key) === 'wrong') cellStateMap.delete(key);
+                        });
+                        wrongPreviewKeys.clear();
                         refreshTiles();
                     }
 
@@ -1447,50 +1365,80 @@ function createLetterTile(x, z, letter) {
                         const cubeMat = material.clone();
                         cubeMat.map = tex;
 
-                        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.08, 1.08, 1.08), cubeMat);
+                        const mesh = new THREE.Mesh(new THREE.BoxGeometry(TILE_SIZE * 0.68, TILE_SIZE * 0.68, TILE_SIZE * 0.68), cubeMat);
                         mesh.position.copy(pos);
-                        mesh.position.y = 0.72;
+                        mesh.position.y = TILE_SIZE * 0.38;
                         scene.add(mesh);
                         return mesh;
                     }
 
+                    function drawWordOnGrid(wordEntry, material) {
+                        if (!wordEntry || !wordEntry.path) return;
+
+                        wordEntry.path.forEach((coord, index) => {
+                            const key = coord.x + ',' + coord.z;
+                            const char = wordEntry.a[index];
+                            const worldPos = gridToWorld(coord.x, coord.z, 0);
+                            const existing = fixedLettersMap.get(key);
+
+                            if (existing) scene.remove(existing.mesh);
+
+                            const mesh = createLetterCube(char, worldPos, material);
+                            fixedLettersMap.set(key, { mesh: mesh });
+                            cellStateMap.set(key, 'correct');
+                        });
+
+                        refreshTiles();
+                    }
+
                     function updateTypedPreview() {
-                        const value = answerInput.value.toUpperCase();
+                        const value = normalizeWord(answerInput.value);
                         answerInput.value = value;
                         feedback.textContent = '';
                         feedback.className = '';
-                        activeLetters.forEach(mesh => scene.remove(mesh));
-                        activeLetters = [];
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
 
                         for (let i = 0; i < Math.min(value.length, activePathCoords.length); i++) {
                             const coord = activePathCoords[i];
-                            const pos = new THREE.Vector3(coord.x * TILE_SIZE, 0, coord.z * TILE_SIZE);
+                            const pos = gridToWorld(coord.x, coord.z, 0);
                             activeLetters.push(createLetterCube(value[i], pos, matWhite));
                         }
+
+                        refreshTiles();
                     }
 
                     function submitTeacherAnswer() {
-                        if (!quizData[currentStep]) return;
-                        const entered = answerInput.value.trim().toUpperCase();
+                        const word = quizData[currentStep];
+                        if (!word) return;
+
+                        const entered = normalizeWord(answerInput.value);
                         if (!entered) return;
 
-                        if (entered !== quizData[currentStep].a) {
+                        if (entered !== word.a) {
                             applyWrongAnswer(entered);
                             return;
                         }
 
-                        applyCorrectAnswer('Ведущий');
+                        teacherState.solved = true;
+                        applyCorrectAnswer('Ведущий', false);
                     }
 
                     function applyWrongAnswer(entered) {
                         const word = quizData[currentStep];
-                        clearFixedMeshesForPath(word.path);
+                        clearFeedbackMeshes();
+                        clearActiveLetters();
 
-                        word.path.forEach((coord, i) => {
-                            const key = `${coord.x},${coord.z}`;
-                            const mesh = createLetterCube(entered[i] || 'X', gridToWorld(coord.x, coord.z, 0), matBad);
-                            fixedLettersMap.set(key, { mesh });
-                            cellStateMap.set(key, 'wrong');
+                        word.path.forEach((coord, index) => {
+                            const key = coord.x + ',' + coord.z;
+                            if (cellStateMap.get(key) !== 'correct') {
+                                cellStateMap.set(key, 'wrong');
+                                wrongPreviewKeys.add(key);
+                            }
+                            const char = entered[index] || '';
+                            if (!char) return;
+                            const mesh = createLetterCube(char, gridToWorld(coord.x, coord.z, 0), matBad);
+                            feedbackMeshes.push(mesh);
                         });
 
                         refreshTiles();
@@ -1498,58 +1446,66 @@ function createLetterTile(x, z, letter) {
                         feedback.className = 'bad';
                     }
 
-                    function applyCorrectAnswer(sourceName, isSync = false) {
-    console.log("Применяем ответ от:", sourceName);
-    
-    const word = quizData[currentStep];
-    if (!word) return; // Проверь, чтобы эта строка была ВНУТРИ { ... }
+                    function applyCorrectAnswer(sourceName, isSync) {
+                        const word = quizData[currentStep];
+                        if (!word) return;
 
-    try {
-        drawWordOnGrid(word);
-    } catch (e) {
-        console.error("Ошибка отрисовки кубиков:", e);
-    }
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
+                        answerInput.value = '';
+                        drawWordOnGrid(word, matGood);
 
-    if (!isSync) {
-        if (typeof socket !== 'undefined' && socket.connected) {
-            socket.emit('word_guessed', {
-                step: currentStep,
-                answer: word.a,
-                user: sourceName
-            });
-        }
-    }
+                        if (!isSync && socket && socket.connected) {
+                            socket.emit('word_guessed', {
+                                step: currentStep,
+                                answer: word.a,
+                                user: sourceName
+                            });
+                        }
 
-    feedback.textContent = `Верно! Отгадал: ${sourceName}`;
-    
-    setTimeout(() => {
-        nextQuestion(); 
-    }, 1500);
-} // Убедись, что эта закрывающая скобка на месте!
+                        feedback.textContent = 'Верно! Отгадал: ' + sourceName;
+                        feedback.className = 'good';
+
+                        if (answerAdvanceTimer) clearTimeout(answerAdvanceTimer);
+                        answerAdvanceTimer = setTimeout(() => {
+                            advanceToNextQuestion();
+                        }, 1200);
+                    }
+
+                    function advanceToNextQuestion() {
+                        answerAdvanceTimer = null;
+                        currentStep += 1;
+                        if (currentStep >= quizData.length) {
+                            finishGame();
+                            return;
+                        }
+
+                        questionBox.style.display = 'none';
+                        feedback.textContent = '';
+                        feedback.className = '';
+                        answerInput.value = '';
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
+                        updateSphereTarget();
+                        broadcastQuestion();
+                    }
 
                     function finishGame() {
                         sphere.visible = false;
-                        const sorted = [...students.values()].sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
+                        questionBox.style.display = 'none';
+
+                        const sorted = Array.from(students.values()).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
                         if (sorted.length) {
                             winnerBanner.style.display = 'block';
-                            winnerBanner.textContent = `Победитель: ${sorted[0].name} (${sorted[0].score})`;
+                            winnerBanner.textContent = 'Победитель: ' + sorted[0].name + ' (' + sorted[0].score + ')';
                             broadcastWinner();
                         } else {
                             winnerBanner.style.display = 'block';
                             winnerBanner.textContent = 'Кроссворд завершен.';
                         }
                         teacherStatus.textContent = 'Кроссворд завершен.';
-                    }
-
-                    function clearFixedMeshesForPath(path) {
-                        path.forEach(coord => {
-                            const key = `${coord.x},${coord.z}`;
-                            const existing = fixedLettersMap.get(key);
-                            if (existing) {
-                                scene.remove(existing.mesh);
-                                fixedLettersMap.delete(key);
-                            }
-                        });
                     }
 
                     function updateSphereTarget() {
@@ -1565,11 +1521,11 @@ function createLetterTile(x, z, letter) {
                         activePathCoords = current.path.slice();
                         refreshTiles();
 
-                        stepCounter.textContent = `Вопрос №${currentStep + 1}`;
+                        stepCounter.textContent = 'Вопрос №' + (currentStep + 1);
                         questionText.textContent = current.q;
-                        answerMeta.textContent = `Длина ответа: ${current.a.length}`;
-                        teacherState.currentQuestion = `Вопрос ${currentStep + 1}: ${current.q}`;
-                        teacherState.pendingAdvance = false;
+                        answerMeta.textContent = 'Длина ответа: ' + current.a.length;
+                        teacherState.currentQuestion = 'Вопрос ' + (currentStep + 1) + ': ' + current.q;
+                        teacherState.solved = false;
 
                         if (cameraMode === 'word') focusCameraOnWord(current);
                         else if (cameraMode === 'top') focusCameraTop();
@@ -1593,7 +1549,6 @@ function createLetterTile(x, z, letter) {
 
                         desiredCameraTarget.copy(center);
                         desiredCameraPos.copy(center.clone().add(forward.multiplyScalar(distance)).add(new THREE.Vector3(0, 7.8, 0)));
-                        camera.up.set(0, 1, 0);
                         cameraAssist = 1;
                     }
 
@@ -1609,7 +1564,6 @@ function createLetterTile(x, z, letter) {
 
                         desiredCameraTarget.copy(center);
                         desiredCameraPos.copy(center.clone().add(new THREE.Vector3(0, Math.max(20, span * 1.12), span * 0.08)));
-                        camera.up.set(0, 1, 0);
                         cameraAssist = 1;
                     }
 
@@ -1625,31 +1579,31 @@ function createLetterTile(x, z, letter) {
                         questionBox.style.display = 'none';
                         feedback.textContent = '';
                         feedback.className = '';
-                        if (teacherState.pendingAdvance) {
-                            teacherState.pendingAdvance = false;
-                            currentStep += 1;
-                            if (currentStep >= quizData.length) {
-                                finishGame();
-                                return;
-                            }
-                            updateSphereTarget();
-                            broadcastQuestion();
-                        }
+                        clearActiveLetters();
+                        clearFeedbackMeshes();
+                        answerInput.value = '';
+                        refreshTiles();
+                    }
+
+                    function isUiEventTarget(target) {
+                        return !!(target && target.closest && target.closest('#teacher-ui, #question-box, #start-overlay'));
                     }
 
                     function onPointerDown(event) {
+                        if (isUiEventTarget(event.target)) return;
                         pointerDownPos = { x: event.clientX, y: event.clientY };
                         pointerDragged = false;
                     }
 
                     function onPointerMove(event) {
                         if (!pointerDownPos) return;
-                        if (Math.abs(event.clientX - pointerDownPos.x) > 8 || Math.abs(event.clientY - pointerDownPos.y) > 8) {
+                        if (Math.abs(event.clientX - pointerDownPos.x) > 6 || Math.abs(event.clientY - pointerDownPos.y) > 6) {
                             pointerDragged = true;
                         }
                     }
 
                     function onPointerUp(event) {
+                        if (isUiEventTarget(event.target)) return;
                         if (!pointerDownPos) return;
                         const wasDragged = pointerDragged;
                         pointerDownPos = null;
@@ -1666,9 +1620,7 @@ function createLetterTile(x, z, letter) {
                         );
                         raycaster.setFromCamera(mouse, camera);
                         const hits = raycaster.intersectObjects(sphere.children);
-                        if (hits.length) {
-                            openQuestion();
-                        }
+                        if (hits.length) openQuestion();
                     }
 
                     function onResize() {
@@ -1678,39 +1630,35 @@ function createLetterTile(x, z, letter) {
                         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.7));
                     }
 
-                    function animate(now = performance.now()) {
-    requestAnimationFrame(animate);
-    
-    if (controls) {
-        controls.update(); // Тот самый фикс для движения камеры
-    }
+                    function animate(now) {
+                        requestAnimationFrame(animate);
 
-    const delta = Math.min(0.05, (now - (animate.lastTime || now)) / 1000);
-    animate.lastTime = now;
+                        if (controls) controls.update();
 
-    updateSnake(delta);
-    renderSnake();
+                        const currentTime = typeof now === 'number' ? now : performance.now();
+                        const delta = Math.min(0.05, (currentTime - (animate.lastTime || currentTime)) / 1000);
+                        animate.lastTime = currentTime;
 
-    if (sphere.visible) {
-        sphere.position.lerp(targetSpherePos, 0.12);
-    }
+                        updateSnake(delta);
+                        renderSnake();
 
-    if (cameraAssist > 0.001) {
-        camera.position.lerp(desiredCameraPos, Math.min(1, delta * 2.6));
-        controls.target.lerp(desiredCameraTarget, Math.min(1, delta * 3.1));
-        cameraAssist = Math.max(0, cameraAssist - delta * 0.26);
-    }
+                        if (sphere.visible) sphere.position.lerp(targetSpherePos, 0.12);
 
-    renderer.render(scene, camera);
-}
+                        if (cameraAssist > 0.001) {
+                            camera.position.lerp(desiredCameraPos, Math.min(1, delta * 2.6));
+                            controls.target.lerp(desiredCameraTarget, Math.min(1, delta * 3.1));
+                            cameraAssist = Math.max(0, cameraAssist - delta * 0.26);
+                        }
+
+                        renderer.render(scene, camera);
+                    }
 
                     function updateSnake(delta) {
                         snakeProgress += delta * SNAKE_SPEED;
                         if (snakeProgress >= 1) {
                             snakeProgress -= 1;
                             snakeCurrentGrid = { x: snakeNextGrid.x, z: snakeNextGrid.z };
-                            const choice = chooseNextSnakeTile();
-                            snakeNextGrid = choice;
+                            snakeNextGrid = chooseNextSnakeTile();
                         }
 
                         const from = gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
@@ -1740,12 +1688,12 @@ function createLetterTile(x, z, letter) {
                         ];
 
                         const forbidden = expandBounds(layoutBounds, 6);
-                        const recent = new Set(snakeGridPath.slice(0, 10).map(cell => `${cell.x},${cell.z}`));
+                        const recent = new Set(snakeGridPath.slice(0, 10).map((cell) => cell.x + ',' + cell.z));
                         const options = [];
 
-                        dirs.forEach(dir => {
+                        dirs.forEach((dir) => {
                             const candidate = { x: snakeCurrentGrid.x + dir.x, z: snakeCurrentGrid.z + dir.z };
-                            const key = `${candidate.x},${candidate.z}`;
+                            const key = candidate.x + ',' + candidate.z;
                             if (Math.abs(candidate.x) > 34 || Math.abs(candidate.z) > 34) return;
                             if (isInsideBounds(candidate, forbidden)) return;
                             if (recent.has(key)) return;
@@ -1754,10 +1702,7 @@ function createLetterTile(x, z, letter) {
 
                         let next = null;
                         if (options.length) {
-                            const preferred = options
-                                .slice()
-                                .sort((a, b) => snakeTileScore(b, forbidden) - snakeTileScore(a, forbidden))[0];
-                            next = preferred;
+                            next = options.slice().sort((a, b) => snakeTileScore(b, forbidden) - snakeTileScore(a, forbidden))[0];
                         } else {
                             next = findEscapeTile(forbidden);
                         }
@@ -1782,10 +1727,9 @@ function createLetterTile(x, z, letter) {
                             { x: snakeCurrentGrid.x, z: snakeCurrentGrid.z - 1 },
                             { x: snakeCurrentGrid.x + 2, z: snakeCurrentGrid.z },
                             { x: snakeCurrentGrid.x - 2, z: snakeCurrentGrid.z }
-                        ].filter(tile => !isInsideBounds(tile, forbidden));
+                        ].filter((tile) => !isInsideBounds(tile, forbidden));
 
                         if (candidates.length) return candidates[0];
-
                         return { x: -28, z: 22 };
                     }
 
@@ -1824,15 +1768,10 @@ function createLetterTile(x, z, letter) {
 
                 function normalizePlayerName(value) {
                     const banned = ['ХУЙ', 'ПИЗД', 'ЕБ', 'БЛЯ', 'СУКА', 'МУД', 'FUCK', 'BITCH', 'DICK'];
-                    let cleaned = String(value || '')
-                        .replace(/\s+/g, ' ')
-                        .trim()
-                        .slice(0, 24);
+                    const cleaned = String(value || '').replace(/\s+/g, ' ').trim().slice(0, 24);
                     if (!cleaned) return '';
                     const upper = cleaned.toUpperCase().replace(/Ё/g, 'Е');
-                    if (banned.some(word => upper.includes(word))) {
-                        return '';
-                    }
+                    if (banned.some((word) => upper.includes(word))) return '';
                     return cleaned;
                 }
 
@@ -1863,9 +1802,17 @@ function createLetterTile(x, z, letter) {
             } catch (error) {
                 const bootErrorEl = document.getElementById('boot-error');
                 bootErrorEl.style.display = 'block';
-                bootErrorEl.textContent = `Ошибка запуска:\n${error.message}`;
+                bootErrorEl.textContent = 'Ошибка запуска:\n' + error.message;
             }
         })();
+
+        if (socket) {
+            socket.on('sync_word', (data) => {
+                if (typeof window.__applySyncedWord === 'function') {
+                    window.__applySyncedWord(data);
+                }
+            });
+        }
     </script>
 </body>
 </html>
