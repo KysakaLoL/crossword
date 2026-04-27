@@ -554,7 +554,7 @@ socket.on('sync_word', (data) => {
 }
 
                     function playRemoteTone() {
-                         (!audioEnabled) {
+                         if (!audioEnabled) {
                             status.textContent = 'Ведущий отправил звук, но на телефоне он еще не разрешен.';
                             return;
                         }
