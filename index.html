@@ -468,7 +468,7 @@
 
                 const TILE_SIZE = 2;
                 const SNAKE_SPEED = 4.1;
-                const SNAKE_SEGMENTS = isMobile ? 58 : 68;
+                const SNAKE_SEGMENTS = isMobile ? 120 : 150;
                 const SNAKE_POINT_STEP = 0.16;
                 const MAX_WORDS = 100;
 
@@ -664,6 +664,7 @@
                     let snakeTargetLength = snakeCurrentLength;
                     let snakeApples = [];
                     let activeAppleIndex = 0;
+                    let snakeVictoryOrbit = null;
 
                     let tileMap = new Map();
                     let fixedLettersMap = new Map();
@@ -799,108 +800,73 @@
                     }
 
                     function buildSnakeVisuals() {
-                        const headMat = new THREE.MeshPhysicalMaterial({
-                            color: 0x00aa44,
-                            roughness: 0.15,
-                            metalness: 0.7,
-                            emissive: 0x002211,
-                            clearcoat: 1,
-                            clearcoatRoughness: 0.1
+                        const vertices = new Float32Array([
+                            0.0,  0.0,  1.45,
+                            0.82, -0.2,  0.0,
+                           -0.82, -0.2,  0.0,
+                            0.0,  0.42,  0.0,
+                            0.54, -0.52, -1.02,
+                           -0.54, -0.52, -1.02,
+                            0.0,  0.12, -1.02
+                        ]);
+                        const indices = [
+                            0, 1, 3,
+                            0, 3, 2,
+                            0, 2, 5,
+                            0, 5, 4,
+                            0, 4, 1,
+                            1, 4, 3,
+                            2, 3, 5,
+                            3, 4, 6,
+                            3, 6, 5,
+                            4, 5, 6
+                        ];
+
+                        const headGeo = new THREE.BufferGeometry();
+                        headGeo.setIndex(indices);
+                        headGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+                        headGeo.computeVertexNormals();
+
+                        const headMat = new THREE.MeshPhongMaterial({
+                            color: 0xcf163f,
+                            shininess: 100,
+                            emissive: 0x2d0010
                         });
-                        const bodyMat = new THREE.MeshPhysicalMaterial({
-                            color: 0x00ff88,
-                            roughness: 0.1,
-                            metalness: 0.88,
-                            emissive: 0x002613,
-                            clearcoat: 1,
-                            clearcoatRoughness: 0.08
-                        });
+                        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x7efbff });
 
                         snakeHead = new THREE.Group();
 
-                        const headShape = new THREE.Shape();
-                        const topPoints = [
-                            [0, 0],
-                            [1, 1],
-                            [2, 1],
-                            [1, 0],
-                            [2, -1],
-                            [1, -1],
-                            [0, 0]
-                        ];
-                        topPoints.forEach((point, index) => {
-                            const px = (point[0] - 1) * 0.55;
-                            const py = point[1] * 0.42;
-                            if (index === 0) headShape.moveTo(px, py);
-                            else headShape.lineTo(px, py);
-                        });
+                        const headCore = new THREE.Mesh(headGeo, headMat);
+                        headCore.scale.set(1.15, 1.05, 1.1);
+                        headCore.castShadow = !isMobile;
+                        snakeHead.add(headCore);
 
-                        const headGeo = new THREE.ExtrudeGeometry(headShape, {
-                            depth: 0.72,
-                            bevelEnabled: true,
-                            bevelSize: 0.08,
-                            bevelThickness: 0.08,
-                            bevelSegments: 2,
-                            curveSegments: 10
-                        });
-                        headGeo.center();
-                        headGeo.rotateX(-Math.PI / 2);
-                        headGeo.rotateY(-Math.PI / 2);
-
-                        const skull = new THREE.Mesh(headGeo, headMat);
-                        skull.scale.set(1.18, 1.06, 1.28);
-                        skull.castShadow = !isMobile;
-                        snakeHead.add(skull);
-
-                        const noseBridge = new THREE.Mesh(
-                            new THREE.SphereGeometry(0.28, 14, 14),
-                            new THREE.MeshStandardMaterial({ color: 0x0b8a43, roughness: 0.22, metalness: 0.24 })
-                        );
-                        noseBridge.scale.set(1.35, 0.72, 0.84);
-                        noseBridge.position.set(0.62, 0.03, 0);
-                        snakeHead.add(noseBridge);
-
-                        const jaw = new THREE.Mesh(
-                            new THREE.BoxGeometry(0.82, 0.18, 0.72),
-                            new THREE.MeshStandardMaterial({ color: 0x00733a, roughness: 0.22, metalness: 0.35 })
-                        );
-                        jaw.position.set(0.46, -0.18, 0);
-                        jaw.rotation.z = 0.02;
-                        snakeHead.add(jaw);
-
-                        const leftEye = new THREE.Mesh(
-                            new THREE.TetrahedronGeometry(0.13),
-                            new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x00ff88, emissiveIntensity: 4.4, roughness: 0.15 })
-                        );
-                        leftEye.position.set(0.26, 0.16, -0.28);
-                        const rightEye = leftEye.clone();
-                        rightEye.position.x = 0.26;
-                        rightEye.position.z = 0.28;
-                        snakeHead.add(leftEye);
-                        snakeHead.add(rightEye);
-
-                        const nostrilMat = new THREE.MeshStandardMaterial({ color: 0x072f19, roughness: 0.5, metalness: 0.15 });
-                        const leftNostril = new THREE.Mesh(
-                            new THREE.SphereGeometry(0.045, 8, 8),
-                            nostrilMat
-                        );
-                        leftNostril.scale.set(1, 0.6, 1);
-                        leftNostril.position.set(0.9, 0.04, -0.12);
-                        const rightNostril = leftNostril.clone();
-                        rightNostril.position.z = 0.12;
-                        snakeHead.add(leftNostril);
-                        snakeHead.add(rightNostril);
+                        const eyeGeo = new THREE.BoxGeometry(0.46, 0.08, 0.08);
+                        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+                        eyeL.position.set(0.38, 0.1, 0.56);
+                        eyeL.rotation.y = 0.48;
+                        const eyeR = eyeL.clone();
+                        eyeR.position.x = -0.38;
+                        eyeR.rotation.y = -0.48;
+                        snakeHead.add(eyeL);
+                        snakeHead.add(eyeR);
 
                         scene.add(snakeHead);
 
-                        const segmentGeo = new THREE.SphereGeometry(0.52, 16, 14);
+                        const segmentGeo = new THREE.OctahedronGeometry(0.7, 0);
+                        const bodyMat = new THREE.MeshPhongMaterial({
+                            color: 0x960a24,
+                            flatShading: true,
+                            shininess: 45
+                        });
                         snakeBody = new THREE.InstancedMesh(segmentGeo, bodyMat, SNAKE_SEGMENTS);
                         snakeBody.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
                         scene.add(snakeBody);
                         snakeDummy = new THREE.Object3D();
 
                         const startPos = gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.55);
-                        for (let i = 0; i < SNAKE_SEGMENTS * 4; i++) {
+                        snakePathPoints = [];
+                        for (let i = 0; i < SNAKE_SEGMENTS * 6; i++) {
                             snakePathPoints.push(startPos.clone());
                         }
                         lastHeadPoint.copy(startPos);
@@ -1311,9 +1277,10 @@
                         gamePhase = 'playing';
                         finalEatTargets = [];
                         finalWinners = [];
-                        snakeCurrentLength = isMobile ? 18 : 24;
+                        snakeCurrentLength = isMobile ? 16 : 20;
                         snakeTargetLength = snakeCurrentLength;
                         activeAppleIndex = 0;
+                        snakeVictoryOrbit = null;
                         if (appleGroup) appleGroup.visible = true;
                         respawnSnakeApples();
                     }
@@ -1859,9 +1826,10 @@
 
                     function updateSnake(delta) {
                         const prevHead = (snakePathPoints[0] || lastHeadPoint).clone();
-                        const headPos = gamePhase === 'finishing' || gamePhase === 'finished'
-                            ? updateSnakeFinal(delta, prevHead)
-                            : updateSnakeOrbit(delta);
+                        let headPos;
+                        if (gamePhase === 'finishing') headPos = updateSnakeFinal(delta, prevHead);
+                        else if (gamePhase === 'finished') headPos = updateSnakeVictoryOrbit(delta, prevHead);
+                        else headPos = updateSnakeOrbit(delta);
                         const motion = headPos.clone().sub(prevHead);
 
                         if (motion.lengthSq() > 0.0001) {
@@ -1875,7 +1843,7 @@
                             snakePathPoints[0] = headPos.clone();
                         }
 
-                        const need = SNAKE_SEGMENTS * 4;
+                        const need = SNAKE_SEGMENTS * 6;
                         while (snakePathPoints.length < need) snakePathPoints.push(headPos.clone());
                         while (snakePathPoints.length > need) snakePathPoints.pop();
                     }
@@ -1915,9 +1883,9 @@
 
                     function updateSnakeFinal(delta, prevHead) {
                         if (!finalEatTargets.length) {
-                            gamePhase = 'finished';
+                            startSnakeVictoryOrbit(prevHead);
                             teacherStatus.textContent = 'Кроссворд полностью съеден.';
-                            return updateSnakeOrbit(delta);
+                            return prevHead.clone();
                         }
 
                         const target = finalEatTargets[0];
@@ -1929,13 +1897,43 @@
                         if (distance <= Math.max(0.25, speed * delta)) {
                             consumeBoardCell(finalEatTargets.shift());
                             if (!finalEatTargets.length) {
-                                gamePhase = 'finished';
+                                startSnakeVictoryOrbit(targetPos);
                                 teacherStatus.textContent = 'Кроссворд полностью съеден.';
                             }
                             return targetPos;
                         }
 
                         return prevHead.clone().add(toTarget.normalize().multiplyScalar(speed * delta));
+                    }
+
+                    function startSnakeVictoryOrbit(fromPos) {
+                        const center = getLayoutCenterWorld();
+                        const dx = fromPos.x - center.x;
+                        const dz = fromPos.z - center.z;
+                        snakeVictoryOrbit = {
+                            angle: Math.atan2(dz, dx),
+                            radiusX: Math.max(8, Math.abs(dx)),
+                            radiusZ: Math.max(6, Math.abs(dz)),
+                            y: fromPos.y
+                        };
+                        gamePhase = 'finished';
+                    }
+
+                    function updateSnakeVictoryOrbit(delta, prevHead) {
+                        if (!snakeVictoryOrbit) {
+                            startSnakeVictoryOrbit(prevHead);
+                        }
+
+                        const center = getLayoutCenterWorld();
+                        snakeVictoryOrbit.angle += delta * 0.55;
+                        snakeVictoryOrbit.radiusX = THREE.MathUtils.lerp(snakeVictoryOrbit.radiusX, Math.max(10, getLayoutSpanWorld() * 0.42), delta * 0.35);
+                        snakeVictoryOrbit.radiusZ = THREE.MathUtils.lerp(snakeVictoryOrbit.radiusZ, Math.max(7, getLayoutSpanWorld() * 0.3), delta * 0.35);
+
+                        return new THREE.Vector3(
+                            center.x + Math.cos(snakeVictoryOrbit.angle) * snakeVictoryOrbit.radiusX,
+                            snakeVictoryOrbit.y,
+                            center.z + Math.sin(snakeVictoryOrbit.angle) * snakeVictoryOrbit.radiusZ
+                        );
                     }
 
                     function chooseNextSnakeTile() {
@@ -2049,23 +2047,27 @@
                     function renderSnake() {
                         const headPos = snakePathPoints[0] || gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
                         snakeHead.position.copy(headPos);
-                        snakeHead.rotation.y = snakeAngle + Math.PI;
+                        if (snakePathPoints[1]) {
+                            const forward = headPos.clone().sub(snakePathPoints[1]).normalize();
+                            if (forward.lengthSq() > 0.0001) {
+                                snakeHead.lookAt(headPos.clone().add(forward));
+                            }
+                        }
 
                         let count = 0;
                         const visibleSegments = Math.max(8, Math.min(SNAKE_SEGMENTS - 2, Math.floor(snakeCurrentLength)));
                         for (let i = 0; i < visibleSegments; i++) {
-                            const idx = Math.min(snakePathPoints.length - 1, i * 2);
+                            const idx = Math.min(snakePathPoints.length - 1, i * 3);
                             const pos = snakePathPoints[idx];
                             const next = snakePathPoints[Math.min(snakePathPoints.length - 1, idx + 1)] || pos;
-                            const t = i / Math.max(1, visibleSegments - 1);
-                            const radius = 1.34 - t * 0.86;
+                            const taper = Math.pow(1 - (i / Math.max(1, visibleSegments)), 0.8);
 
                             snakeDummy.position.copy(pos);
-                            snakeDummy.position.y = 0.46 - t * 0.08;
+                            snakeDummy.position.y = 0.42 - (i / Math.max(1, visibleSegments)) * 0.08;
                             snakeDummy.scale.set(
-                                Math.max(0.22, radius * 0.98),
-                                Math.max(0.18, radius * 0.78),
-                                Math.max(0.26, radius * 1.06)
+                                Math.max(0.1, taper * 0.9),
+                                Math.max(0.08, taper * 0.28),
+                                Math.max(0.12, taper * 1.15)
                             );
                             snakeDummy.lookAt(next);
                             snakeDummy.updateMatrix();
