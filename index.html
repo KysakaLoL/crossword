@@ -665,6 +665,11 @@
                     let snakeApples = [];
                     let activeAppleIndex = 0;
                     let snakeVictoryOrbit = null;
+                    let snakeMoveDir = new THREE.Vector3(1, 0, 0);
+                    let snakeTargetDir = new THREE.Vector3(1, 0, 0);
+                    let snakeRecentHeadPositions = [];
+                    let snakeAppleDistance = Infinity;
+                    let snakeApplePressure = 0;
 
                     let tileMap = new Map();
                     let fixedLettersMap = new Map();
@@ -837,7 +842,7 @@
                         snakeHead = new THREE.Group();
 
                         const headCore = new THREE.Mesh(headGeo, headMat);
-                        headCore.scale.set(1.15, 1.05, 1.1);
+                        headCore.scale.set(0.92, 0.84, 0.88);
                         headCore.castShadow = !isMobile;
                         snakeHead.add(headCore);
 
@@ -870,6 +875,11 @@
                             snakePathPoints.push(startPos.clone());
                         }
                         lastHeadPoint.copy(startPos);
+                        snakeMoveDir.set(1, 0, 0);
+                        snakeTargetDir.set(1, 0, 0);
+                        snakeRecentHeadPositions = Array.from({ length: 28 }, () => startPos.clone());
+                        snakeAppleDistance = Infinity;
+                        snakeApplePressure = 0;
                     }
 
                     function buildSnakeApples() {
@@ -1281,6 +1291,8 @@
                         snakeTargetLength = snakeCurrentLength;
                         activeAppleIndex = 0;
                         snakeVictoryOrbit = null;
+                        snakeAppleDistance = Infinity;
+                        snakeApplePressure = 0;
                         if (appleGroup) appleGroup.visible = true;
                         respawnSnakeApples();
                     }
@@ -1438,7 +1450,15 @@
                     }
 
                     function buildTilesFromLayout() {
-                        tileMap.forEach((tile) => scene.remove(tile.base));
+                        tileMap.forEach((tile) => {
+                            scene.remove(tile.base);
+                            if (tile.label) {
+                                scene.remove(tile.label);
+                                if (tile.label.material.map) tile.label.material.map.dispose();
+                                tile.label.material.dispose();
+                                tile.label.geometry.dispose();
+                            }
+                        });
                         tileMap.clear();
                         while (frameGroup.children.length) {
                             frameGroup.remove(frameGroup.children[0]);
@@ -1471,7 +1491,7 @@
                             frame.position.set(x * TILE_SIZE, 0.015, z * TILE_SIZE);
                             frameGroup.add(frame);
 
-                            tileMap.set(key, { base: base, frame: frame });
+                            tileMap.set(key, { base: base, frame: frame, label: null });
                         });
 
                         refreshTiles();
@@ -1523,9 +1543,52 @@
 
                         const mesh = new THREE.Mesh(new THREE.BoxGeometry(TILE_SIZE * 0.68, TILE_SIZE * 0.68, TILE_SIZE * 0.68), cubeMat);
                         mesh.position.copy(pos);
-                        mesh.position.y = TILE_SIZE * 0.38;
+                        mesh.position.y = 0.18 + (TILE_SIZE * 0.68) / 2;
                         scene.add(mesh);
                         return mesh;
+                    }
+
+                    function createTileLetterProjection(char, color) {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 128;
+                        canvas.height = 128;
+                        const ctx = canvas.getContext('2d');
+                        ctx.clearRect(0, 0, 128, 128);
+                        ctx.fillStyle = color || '#f5fff9';
+                        ctx.font = 'bold 84px Segoe UI';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(char, 64, 66);
+
+                        const texture = new THREE.CanvasTexture(canvas);
+                        const material = new THREE.MeshBasicMaterial({
+                            map: texture,
+                            transparent: true,
+                            depthWrite: false
+                        });
+                        const plane = new THREE.Mesh(new THREE.PlaneGeometry(TILE_SIZE * 0.72, TILE_SIZE * 0.72), material);
+                        plane.rotation.x = -Math.PI / 2;
+                        plane.position.y = 0.19;
+                        return plane;
+                    }
+
+                    function setTileProjection(key, char, color) {
+                        const tile = tileMap.get(key);
+                        if (!tile) return;
+
+                        if (tile.label) {
+                            scene.remove(tile.label);
+                            if (tile.label.material.map) tile.label.material.map.dispose();
+                            tile.label.material.dispose();
+                            tile.label.geometry.dispose();
+                            tile.label = null;
+                        }
+
+                        const plane = createTileLetterProjection(char, color);
+                        plane.position.x = tile.base.position.x;
+                        plane.position.z = tile.base.position.z;
+                        scene.add(plane);
+                        tile.label = plane;
                     }
 
                     function drawWordOnGrid(wordEntry, material) {
@@ -1542,6 +1605,7 @@
                             const mesh = createLetterCube(char, worldPos, material);
                             fixedLettersMap.set(key, { mesh: mesh });
                             cellStateMap.set(key, 'correct');
+                            setTileProjection(key, char, '#f3fff8');
                         });
 
                         refreshTiles();
@@ -1850,35 +1914,83 @@
 
                     function updateSnakeOrbit(delta) {
                         snakeOrbitClock += delta;
-                        snakeOrbitAngle += delta * 0.52;
 
                         const center = getLayoutCenterWorld();
-                        const span = getLayoutSpanWorld();
-                        const baseRadius = Math.max(14, span * 0.62 + 7);
+                        const span = getLayoutSpanWorld() || 24;
+                        const headPos = (snakePathPoints[0] || lastHeadPoint).clone();
                         const snack = snakeApples[activeAppleIndex];
-                        const snackVector = snack ? snack.mesh.position.clone().sub(center).setY(0) : targetSpherePos.clone().sub(center).setY(0);
-                        const snackAngle = snackVector.lengthSq() > 0.0001 ? Math.atan2(snackVector.z, snackVector.x) : snakeOrbitAngle;
-                        const angleDiff = normalizeAngle(snackAngle - snakeOrbitAngle);
-                        snakeOrbitAngle += Math.max(-0.32, Math.min(0.32, angleDiff)) * delta * 0.8;
+                        const desired = new THREE.Vector3();
+                        const avoid = new THREE.Vector3();
+                        const wander = new THREE.Vector3(
+                            Math.cos(snakeOrbitClock * 0.8 + activeAppleIndex * 0.9),
+                            0,
+                            Math.sin(snakeOrbitClock * 0.6 + activeAppleIndex * 0.7)
+                        );
 
-                        const appleVector = targetSpherePos.clone().sub(center).setY(0);
-                        const questionAngle = appleVector.lengthSq() > 0.0001 ? Math.atan2(appleVector.z, appleVector.x) : snakeOrbitAngle;
-                        const questionDiff = normalizeAngle(snakeOrbitAngle - questionAngle);
-                        const behindAppleBoost = sphere.visible ? Math.max(0, Math.cos(questionDiff)) * 3.2 : 0;
-                        const snackBoost = snack ? Math.max(0, Math.cos(angleDiff)) * 5.8 : 0;
+                        if (snack) {
+                            desired.copy(snack.mesh.position).sub(headPos).setY(0);
+                            const appleDistance = desired.length();
+                            if (appleDistance >= snakeAppleDistance - 0.2) snakeApplePressure = Math.min(7, snakeApplePressure + delta * 1.8);
+                            else snakeApplePressure = Math.max(0, snakeApplePressure - delta * 1.1);
+                            snakeAppleDistance = appleDistance;
+                            desired.normalize().multiplyScalar(1.6 + snakeApplePressure * 0.9);
 
-                        const radiusX = baseRadius + Math.sin(snakeOrbitClock * 0.9) * 2.3 + behindAppleBoost + snackBoost;
-                        const radiusZ = baseRadius * 0.76 + Math.cos(snakeOrbitClock * 0.7) * 1.8 + behindAppleBoost * 0.7 + snackBoost * 0.55;
-                        const x = center.x + Math.cos(snakeOrbitAngle) * radiusX + Math.cos(snakeOrbitAngle * 2.4) * 1.1;
-                        const z = center.z + Math.sin(snakeOrbitAngle) * radiusZ + Math.sin(snakeOrbitAngle * 1.6) * 0.9;
-                        const y = 0.56 + Math.sin(snakeOrbitClock * 2.4) * 0.05;
-                        const headPos = new THREE.Vector3(x, y, z);
-
-                        if (snack && headPos.distanceTo(snack.mesh.position) < 2.2) {
-                            consumeSnakeApple(activeAppleIndex);
+                            if (appleDistance < 2.4) {
+                                consumeSnakeApple(activeAppleIndex);
+                            }
                         }
 
-                        return headPos;
+                        const forbidden = {
+                            minX: layoutBounds.minX * TILE_SIZE - 6,
+                            maxX: layoutBounds.maxX * TILE_SIZE + 6,
+                            minZ: layoutBounds.minZ * TILE_SIZE - 6,
+                            maxZ: layoutBounds.maxZ * TILE_SIZE + 6
+                        };
+                        const margin = 5;
+                        if (headPos.x > forbidden.minX - margin && headPos.x < forbidden.maxX + margin &&
+                            headPos.z > forbidden.minZ - margin && headPos.z < forbidden.maxZ + margin) {
+                            const away = headPos.clone().sub(center).setY(0);
+                            if (away.lengthSq() < 0.01) away.set(1, 0, 0);
+                            avoid.add(away.normalize().multiplyScalar(3.4));
+                        }
+
+                        const recent = snakeRecentHeadPositions.slice(-24);
+                        let trailPenalty = 0;
+                        recent.forEach((point) => {
+                            const diff = headPos.clone().sub(point).setY(0);
+                            const distSq = diff.lengthSq();
+                            if (distSq > 0.001 && distSq < 18) {
+                                trailPenalty += 1;
+                                avoid.add(diff.normalize().multiplyScalar(0.14 / Math.max(0.18, distSq)));
+                            }
+                        });
+                        snakeApplePressure = Math.min(8, snakeApplePressure + trailPenalty * delta * 0.08);
+
+                        const outerRadius = Math.max(20, span * 0.82 + 12);
+                        const fromCenter = headPos.clone().sub(center).setY(0);
+                        const centerDistance = fromCenter.length();
+                        if (centerDistance > outerRadius) {
+                            avoid.add(fromCenter.normalize().multiplyScalar(-2.8));
+                        } else if (centerDistance < Math.max(10, span * 0.55)) {
+                            avoid.add(fromCenter.normalize().multiplyScalar(1.5));
+                        }
+
+                        const steering = desired.add(avoid.multiplyScalar(80)).add(wander.multiplyScalar(0.8));
+                        if (steering.lengthSq() < 0.001) steering.copy(snakeMoveDir);
+
+                        snakeTargetDir.lerp(steering.normalize(), Math.min(1, delta * 2.2));
+                        snakeMoveDir.lerp(snakeTargetDir, Math.min(1, delta * 3.1));
+                        if (snakeMoveDir.lengthSq() < 0.001) snakeMoveDir.set(1, 0, 0);
+                        snakeMoveDir.normalize();
+
+                        const speed = TILE_SIZE * 1.24 * delta;
+                        const nextPos = headPos.clone().add(snakeMoveDir.clone().multiplyScalar(speed));
+                        nextPos.y = 0.56 + Math.sin(snakeOrbitClock * 2.6) * 0.05;
+
+                        snakeRecentHeadPositions.push(nextPos.clone());
+                        if (snakeRecentHeadPositions.length > 42) snakeRecentHeadPositions.shift();
+
+                        return nextPos;
                     }
 
                     function updateSnakeFinal(delta, prevHead) {
@@ -2027,21 +2139,14 @@
 
                     function consumeBoardCell(coord) {
                         const key = coord.x + ',' + coord.z;
-                        const tile = tileMap.get(key);
                         const fixed = fixedLettersMap.get(key);
 
                         if (fixed) {
                             scene.remove(fixed.mesh);
                             fixedLettersMap.delete(key);
                         }
-                        if (tile) {
-                            scene.remove(tile.base);
-                            frameGroup.remove(tile.frame);
-                            tileMap.delete(key);
-                        }
 
-                        cellStateMap.delete(key);
-                        occupiedLetterMap.delete(key);
+                        cellStateMap.set(key, 'correct');
                     }
 
                     function renderSnake() {
@@ -2057,17 +2162,17 @@
                         let count = 0;
                         const visibleSegments = Math.max(8, Math.min(SNAKE_SEGMENTS - 2, Math.floor(snakeCurrentLength)));
                         for (let i = 0; i < visibleSegments; i++) {
-                            const idx = Math.min(snakePathPoints.length - 1, i * 3);
+                            const idx = Math.min(snakePathPoints.length - 1, i * 2);
                             const pos = snakePathPoints[idx];
                             const next = snakePathPoints[Math.min(snakePathPoints.length - 1, idx + 1)] || pos;
                             const taper = Math.pow(1 - (i / Math.max(1, visibleSegments)), 0.8);
 
                             snakeDummy.position.copy(pos);
-                            snakeDummy.position.y = 0.42 - (i / Math.max(1, visibleSegments)) * 0.08;
+                            snakeDummy.position.y = 0.48 - (i / Math.max(1, visibleSegments)) * 0.08;
                             snakeDummy.scale.set(
-                                Math.max(0.1, taper * 0.9),
-                                Math.max(0.08, taper * 0.28),
-                                Math.max(0.12, taper * 1.15)
+                                Math.max(0.18, taper * 1.8),
+                                Math.max(0.09, taper * 0.6),
+                                Math.max(0.22, taper * 2.25)
                             );
                             snakeDummy.lookAt(next);
                             snakeDummy.updateMatrix();
