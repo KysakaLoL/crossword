@@ -818,6 +818,52 @@ socket.on('sync_word', (data) => {
                         buildSnakeVisuals();
                     }
 
+					function drawWordOnGrid(wordEntry) {
+    if (!wordEntry || !wordEntry.a) return;
+
+    const chars = wordEntry.a.toUpperCase().split('');
+    const x = wordEntry.x;
+    const z = wordEntry.z;
+    const dir = wordEntry.direction || wordEntry.dir; // Проверь, как называется поле в quizData
+
+    chars.forEach((char, i) => {
+        const cx = (dir === 'across') ? x + i : x;
+        const cz = (dir === 'down') ? z + i : z;
+
+        // ВЫЗОВ СОЗДАНИЯ КУБА
+        createLetterTile(cx, cz, char); 
+    });
+}
+
+// Не забудь про вторую функцию, на которую ругалась консоль!
+function nextQuestion() {
+    currentStep++;
+    if (currentStep < quizData.length) {
+        const nextWord = quizData[currentStep];
+        // Обнови текст вопроса на экране
+        document.getElementById('question-text').textContent = nextWord.q;
+        // Если есть сфера/указатель, перемести её
+        updateTargetSphere(nextWord);
+    } else {
+        alert("Кроссворд пройден!");
+    }
+}
+					// Функция-помощник для создания одного кубика с буквой
+function createLetterTile(x, z, letter) {
+    const size = 0.95;
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const mesh = new THREE.Mesh(geometry, material);
+    
+    // Устанавливаем позицию (Y обычно 0, если сетка плоская)
+    mesh.position.set(x, 0, z);
+    scene.add(mesh);
+
+    // Здесь также должен быть код для добавления текста на кубик
+    // Но для начала проверим хотя бы появление кубиков
+}
+
+					
                     function buildSnakeVisuals() {
                         const headMat = new THREE.MeshPhysicalMaterial({
                             color: 0x00aa44,
