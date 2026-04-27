@@ -1635,6 +1635,9 @@ socket.on('sync_word', (data) => {
 
                     function animate(now = performance.now()) {
                         requestAnimationFrame(animate);
+						if (controls) {
+        					controls.update();
+    					}
                         const delta = Math.min(0.05, (now - (animate.lastTime || now)) / 1000);
                         animate.lastTime = now;
 
