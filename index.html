@@ -710,6 +710,26 @@ socket.on('sync_word', (data) => {
                     let studentCounter = 1;
                     const students = new Map();
 
+					function initControls() {
+    if (THREE.OrbitControls) {
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        
+        controls.enableDamping = true; 
+        controls.dampingFactor = 0.05;
+        controls.rotateSpeed = 1.0; 
+        
+        controls.enableZoom = true;
+        controls.enablePan = true; 
+        
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+        
+        controls.domElement.style.touchAction = 'none';
+    } else {
+        console.error("Ошибка: OrbitControls не загружены. Проверьте подключение скрипта в head.");
+    }
+}
+					
                     const teacherState = {
                         currentQuestion: '',
                         solved: false,
@@ -1429,18 +1449,38 @@ socket.on('sync_word', (data) => {
                     }
 
                     function applyCorrectAnswer(sourceName, isSync = false) {
-    const word = quizData[currentStep];
-    // ... твой код отрисовки кубиков ...
+    console.log("Применяем ответ от:", sourceName);
     
-    // Проверь это место:
+    const word = quizData[currentStep];
+    if (!word) return;
+
+    // Логика отрисовки (твои кубики)
+    try {
+        drawWordOnGrid(word);
+    } catch (e) {
+        console.error("Ошибка отрисовки кубиков:", e);
+    }
+
+    // СИНХРОНИЗАЦИЯ
+    // Если мы сами ввели ответ, отправляем его другим
     if (!isSync) {
-        socket.emit('word_guessed', {
-            step: currentStep,
-            answer: word.a,
-            user: sourceName
-        }); // <- Тут должна быть скобка и точка с запятой
-    } 
-} // <- Тут закрывается сама функция
+        if (typeof socket !== 'undefined' && socket.connected) {
+            socket.emit('word_guessed', {
+                step: currentStep,
+                answer: word.a,
+                user: sourceName
+            });
+        }
+    }
+
+    // Обновляем интерфейс
+    feedback.textContent = `Верно! Отгадал: ${sourceName}`;
+    
+    // Авто-переход к следующему вопросу
+    setTimeout(() => {
+        nextQuestion(); 
+    }, 1500);
+}
 
                     function finishGame() {
                         sphere.visible = false;
