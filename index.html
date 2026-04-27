@@ -576,7 +576,13 @@
                                 }
                                 if (data.type === 'board') renderBoard(data.board || []);
                                 if (data.type === 'message') status.textContent = data.text || '';
-                                if (data.type === 'winner') questionEl.textContent = 'Победитель: ' + data.name;
+                                if (data.type === 'winner') {
+                                    if (Array.isArray(data.topThree) && data.topThree.length) {
+                                        questionEl.textContent = 'Топ: ' + data.topThree.map((item, index) => (index + 1) + '. ' + item.name).join(' | ');
+                                    } else {
+                                        questionEl.textContent = 'Победитель: ' + data.name;
+                                    }
+                                }
                                 if (data.type === 'playTone') playRemoteTone();
                                 if (data.type === 'kicked') {
                                     status.textContent = 'Ведущий отключил это подключение.';
@@ -637,6 +643,8 @@
                     let snakeDummy;
                     let frameGroup;
                     let snakeAngle = 0;
+                    let snakeOrbitAngle = 0;
+                    let snakeOrbitClock = 0;
                     let snakePathPoints = [];
                     let snakeGridPath = [];
                     let snakeCurrentGrid = { x: -14, z: 14 };
@@ -665,6 +673,9 @@
                     let pointerDownPos = null;
                     let pointerDragged = false;
                     let answerAdvanceTimer = null;
+                    let gamePhase = 'playing';
+                    let finalEatTargets = [];
+                    let finalWinners = [];
 
                     let peer;
                     let hostId = '';
@@ -724,14 +735,14 @@
                         controls.enableRotate = true;
                         controls.enablePan = true;
                         controls.enableZoom = true;
-                        controls.rotateSpeed = 0.95;
-                        controls.panSpeed = 1.05;
+                        controls.rotateSpeed = 0.82;
+                        controls.panSpeed = 1.2;
                         controls.zoomSpeed = 1.05;
-                        controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+                        controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
                         controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
-                        controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-                        controls.touches.ONE = THREE.TOUCH.ROTATE;
-                        controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+                        controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
+                        controls.touches.ONE = THREE.TOUCH.PAN;
+                        controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;
                         controls.addEventListener('start', () => {
                             cameraAssist = 0;
                             cameraMode = 'free';
@@ -994,10 +1005,11 @@
 
                     function broadcastWinner() {
                         const sorted = Array.from(students.values()).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
-                        const winner = sorted[0];
+                        const topThree = sorted.slice(0, 3).map((item) => ({ name: item.name, score: item.score }));
+                        const winner = topThree[0];
                         if (!winner) return;
                         students.forEach((student) => {
-                            if (student.conn.open) student.conn.send({ type: 'winner', name: winner.name });
+                            if (student.conn.open) student.conn.send({ type: 'winner', name: winner.name, topThree: topThree });
                         });
                     }
 
@@ -1127,6 +1139,9 @@
                         answerInput.value = '';
                         feedback.textContent = '';
                         feedback.className = '';
+                        gamePhase = 'playing';
+                        finalEatTargets = [];
+                        finalWinners = [];
                     }
 
                     function buildLayout() {
@@ -1497,15 +1512,22 @@
                         questionBox.style.display = 'none';
 
                         const sorted = Array.from(students.values()).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'));
-                        if (sorted.length) {
+                        finalWinners = sorted.slice(0, 3);
+
+                        if (finalWinners.length) {
+                            const podium = finalWinners
+                                .map((item, index) => '<div style="margin-top:6px;">' + (index + 1) + '. ' + escapeHtml(item.name) + ' <span style="opacity:0.82;">(' + item.score + ')</span></div>')
+                                .join('');
                             winnerBanner.style.display = 'block';
-                            winnerBanner.textContent = 'Победитель: ' + sorted[0].name + ' (' + sorted[0].score + ')';
+                            winnerBanner.innerHTML = '<div style="font-size:1.05rem;font-weight:700;">Финиш. Лучшие игроки</div>' + podium;
                             broadcastWinner();
                         } else {
                             winnerBanner.style.display = 'block';
-                            winnerBanner.textContent = 'Кроссворд завершен.';
+                            winnerBanner.innerHTML = '<div style="font-size:1.05rem;font-weight:700;">Кроссворд завершен</div><div style="margin-top:6px;opacity:0.88;">Змейка доедает поле.</div>';
                         }
-                        teacherStatus.textContent = 'Кроссворд завершен.';
+
+                        teacherStatus.textContent = 'Финиш. Змейка съедает кроссворд.';
+                        startFinalEatSequence();
                     }
 
                     function updateSphereTarget() {
@@ -1526,6 +1548,7 @@
                         answerMeta.textContent = 'Длина ответа: ' + current.a.length;
                         teacherState.currentQuestion = 'Вопрос ' + (currentStep + 1) + ': ' + current.q;
                         teacherState.solved = false;
+                        gamePhase = 'playing';
 
                         if (cameraMode === 'word') focusCameraOnWord(current);
                         else if (cameraMode === 'top') focusCameraTop();
@@ -1654,16 +1677,15 @@
                     }
 
                     function updateSnake(delta) {
-                        snakeProgress += delta * SNAKE_SPEED;
-                        if (snakeProgress >= 1) {
-                            snakeProgress -= 1;
-                            snakeCurrentGrid = { x: snakeNextGrid.x, z: snakeNextGrid.z };
-                            snakeNextGrid = chooseNextSnakeTile();
-                        }
+                        const prevHead = (snakePathPoints[0] || lastHeadPoint).clone();
+                        const headPos = gamePhase === 'finishing' || gamePhase === 'finished'
+                            ? updateSnakeFinal(delta, prevHead)
+                            : updateSnakeOrbit(delta);
+                        const motion = headPos.clone().sub(prevHead);
 
-                        const from = gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
-                        const to = gridToWorld(snakeNextGrid.x, snakeNextGrid.z, 0.56);
-                        const headPos = from.clone().lerp(to, snakeProgress);
+                        if (motion.lengthSq() > 0.0001) {
+                            snakeAngle = Math.atan2(motion.x, motion.z);
+                        }
 
                         if (headPos.distanceToSquared(lastHeadPoint) >= SNAKE_POINT_STEP * SNAKE_POINT_STEP) {
                             snakePathPoints.unshift(headPos.clone());
@@ -1675,8 +1697,52 @@
                         const need = SNAKE_SEGMENTS * 4;
                         while (snakePathPoints.length < need) snakePathPoints.push(headPos.clone());
                         while (snakePathPoints.length > need) snakePathPoints.pop();
+                    }
 
-                        snakeAngle = Math.atan2(to.x - from.x, to.z - from.z);
+                    function updateSnakeOrbit(delta) {
+                        snakeOrbitClock += delta;
+                        snakeOrbitAngle += delta * 0.62;
+
+                        const center = getLayoutCenterWorld();
+                        const span = getLayoutSpanWorld();
+                        const baseRadius = Math.max(14, span * 0.62 + 7);
+                        const appleVector = targetSpherePos.clone().sub(center).setY(0);
+                        const appleAngle = appleVector.lengthSq() > 0.0001 ? Math.atan2(appleVector.z, appleVector.x) : snakeOrbitAngle;
+                        const angleDiff = normalizeAngle(snakeOrbitAngle - appleAngle);
+                        const behindAppleBoost = sphere.visible ? Math.max(0, Math.cos(angleDiff)) * 4.2 : 0;
+
+                        const radiusX = baseRadius + Math.sin(snakeOrbitClock * 0.9) * 2.3 + behindAppleBoost;
+                        const radiusZ = baseRadius * 0.76 + Math.cos(snakeOrbitClock * 0.7) * 1.8 + behindAppleBoost * 0.7;
+                        const x = center.x + Math.cos(snakeOrbitAngle) * radiusX + Math.cos(snakeOrbitAngle * 2.4) * 1.1;
+                        const z = center.z + Math.sin(snakeOrbitAngle) * radiusZ + Math.sin(snakeOrbitAngle * 1.6) * 0.9;
+                        const y = 0.56 + Math.sin(snakeOrbitClock * 2.4) * 0.05;
+
+                        return new THREE.Vector3(x, y, z);
+                    }
+
+                    function updateSnakeFinal(delta, prevHead) {
+                        if (!finalEatTargets.length) {
+                            gamePhase = 'finished';
+                            teacherStatus.textContent = 'Кроссворд полностью съеден.';
+                            return updateSnakeOrbit(delta);
+                        }
+
+                        const target = finalEatTargets[0];
+                        const targetPos = gridToWorld(target.x, target.z, 0.56);
+                        const toTarget = targetPos.clone().sub(prevHead);
+                        const distance = toTarget.length();
+                        const speed = TILE_SIZE * (SNAKE_SPEED + 1.6);
+
+                        if (distance <= Math.max(0.25, speed * delta)) {
+                            consumeBoardCell(finalEatTargets.shift());
+                            if (!finalEatTargets.length) {
+                                gamePhase = 'finished';
+                                teacherStatus.textContent = 'Кроссворд полностью съеден.';
+                            }
+                            return targetPos;
+                        }
+
+                        return prevHead.clone().add(toTarget.normalize().multiplyScalar(speed * delta));
                     }
 
                     function chooseNextSnakeTile() {
@@ -1733,6 +1799,59 @@
                         return { x: -28, z: 22 };
                     }
 
+                    function startFinalEatSequence() {
+                        finalEatTargets = buildFinalEatTargets();
+                        gamePhase = finalEatTargets.length ? 'finishing' : 'finished';
+                    }
+
+                    function buildFinalEatTargets() {
+                        const remaining = Array.from(tileMap.keys()).map((key) => {
+                            const parts = key.split(',').map(Number);
+                            return { x: parts[0], z: parts[1] };
+                        });
+                        const ordered = [];
+                        let head = snakePathPoints[0] ? snakePathPoints[0].clone() : getLayoutCenterWorld();
+
+                        while (remaining.length) {
+                            let bestIndex = 0;
+                            let bestDist = Infinity;
+
+                            for (let i = 0; i < remaining.length; i++) {
+                                const world = gridToWorld(remaining[i].x, remaining[i].z, 0.56);
+                                const dist = head.distanceToSquared(world);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    bestIndex = i;
+                                }
+                            }
+
+                            const next = remaining.splice(bestIndex, 1)[0];
+                            ordered.push(next);
+                            head = gridToWorld(next.x, next.z, 0.56);
+                        }
+
+                        return ordered;
+                    }
+
+                    function consumeBoardCell(coord) {
+                        const key = coord.x + ',' + coord.z;
+                        const tile = tileMap.get(key);
+                        const fixed = fixedLettersMap.get(key);
+
+                        if (fixed) {
+                            scene.remove(fixed.mesh);
+                            fixedLettersMap.delete(key);
+                        }
+                        if (tile) {
+                            scene.remove(tile.base);
+                            frameGroup.remove(tile.frame);
+                            tileMap.delete(key);
+                        }
+
+                        cellStateMap.delete(key);
+                        occupiedLetterMap.delete(key);
+                    }
+
                     function renderSnake() {
                         const headPos = snakePathPoints[0] || gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
                         snakeHead.position.copy(headPos);
@@ -1756,6 +1875,20 @@
                         }
                         snakeBody.count = count;
                         snakeBody.instanceMatrix.needsUpdate = true;
+                    }
+
+                    function getLayoutCenterWorld() {
+                        return new THREE.Vector3(
+                            ((layoutBounds.minX + layoutBounds.maxX) * TILE_SIZE) / 2,
+                            0,
+                            ((layoutBounds.minZ + layoutBounds.maxZ) * TILE_SIZE) / 2
+                        );
+                    }
+
+                    function getLayoutSpanWorld() {
+                        const width = (layoutBounds.maxX - layoutBounds.minX + 1) * TILE_SIZE;
+                        const depth = (layoutBounds.maxZ - layoutBounds.minZ + 1) * TILE_SIZE;
+                        return Math.max(width, depth);
                     }
                 }
 
@@ -1798,6 +1931,13 @@
 
                 function isInsideBounds(point, bounds) {
                     return point.x >= bounds.minX && point.x <= bounds.maxX && point.z >= bounds.minZ && point.z <= bounds.maxZ;
+                }
+
+                function normalizeAngle(angle) {
+                    let current = angle;
+                    while (current > Math.PI) current -= Math.PI * 2;
+                    while (current < -Math.PI) current += Math.PI * 2;
+                    return current;
                 }
             } catch (error) {
                 const bootErrorEl = document.getElementById('boot-error');
