@@ -94,6 +94,14 @@
             inset: 0;
         }
 
+        #teacher-root {
+            pointer-events: none;
+        }
+
+        #teacher-root > * {
+            pointer-events: auto;
+        }
+
         #student-root {
             display: none;
             background: linear-gradient(180deg, #eef6fb 0%, #e2eaf2 100%);
@@ -106,8 +114,8 @@
             top: 16px;
             left: 16px;
             z-index: 20;
-            width: min(380px, calc(100vw - 32px));
-            padding: 16px;
+            width: min(300px, calc(100vw - 32px));
+            padding: 12px;
         }
 
         #teacher-topline,
@@ -195,8 +203,8 @@
             top: 20px;
             left: 16px;
             z-index: 30;
-            width: min(430px, calc(100vw - 32px));
-            padding: 16px;
+            width: min(280px, calc(100vw - 32px));
+            padding: 12px;
             display: none;
         }
 
@@ -341,13 +349,13 @@
 
         @media (max-width: 800px) {
             #teacher-ui {
-                width: min(320px, calc(100vw - 24px));
+                width: min(280px, calc(100vw - 24px));
                 top: 12px;
                 left: 12px;
             }
 
             #question-box {
-                width: min(350px, calc(100vw - 24px));
+                width: min(250px, calc(100vw - 24px));
                 top: auto;
                 bottom: 12px;
                 left: 12px;
@@ -656,7 +664,6 @@
                     let snakeTargetLength = snakeCurrentLength;
                     let snakeApples = [];
                     let activeAppleIndex = 0;
-                    let snakeTongue = null;
 
                     let tileMap = new Map();
                     let fixedLettersMap = new Map();
@@ -845,14 +852,13 @@
                         skull.castShadow = !isMobile;
                         snakeHead.add(skull);
 
-                        const snout = new THREE.Mesh(
-                            new THREE.CylinderGeometry(0.18, 0.34, 0.88, 8),
-                            new THREE.MeshStandardMaterial({ color: 0x0b8a43, roughness: 0.2, metalness: 0.28 })
+                        const noseBridge = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.28, 14, 14),
+                            new THREE.MeshStandardMaterial({ color: 0x0b8a43, roughness: 0.22, metalness: 0.24 })
                         );
-                        snout.rotation.z = Math.PI / 2;
-                        snout.rotation.x = 0.08;
-                        snout.position.set(0.54, -0.01, 0);
-                        snakeHead.add(snout);
+                        noseBridge.scale.set(1.35, 0.72, 0.84);
+                        noseBridge.position.set(0.62, 0.03, 0);
+                        snakeHead.add(noseBridge);
 
                         const jaw = new THREE.Mesh(
                             new THREE.BoxGeometry(0.82, 0.18, 0.72),
@@ -884,13 +890,6 @@
                         rightNostril.position.z = 0.12;
                         snakeHead.add(leftNostril);
                         snakeHead.add(rightNostril);
-
-                        snakeTongue = new THREE.Mesh(
-                            new THREE.BoxGeometry(0.36, 0.02, 0.06),
-                            new THREE.MeshStandardMaterial({ color: 0xff5a73, emissive: 0x4a0d18, emissiveIntensity: 0.45 })
-                        );
-                        snakeTongue.position.set(0.98, -0.1, 0);
-                        snakeHead.add(snakeTongue);
 
                         scene.add(snakeHead);
 
@@ -2051,12 +2050,6 @@
                         const headPos = snakePathPoints[0] || gridToWorld(snakeCurrentGrid.x, snakeCurrentGrid.z, 0.56);
                         snakeHead.position.copy(headPos);
                         snakeHead.rotation.y = snakeAngle + Math.PI;
-
-                        if (snakeTongue) {
-                            const tonguePulse = 0.72 + Math.max(0, Math.sin(snakeOrbitClock * 5.4)) * 0.8;
-                            snakeTongue.scale.x = tonguePulse;
-                            snakeTongue.scale.z = 0.72 + Math.max(0, Math.sin(snakeOrbitClock * 10.8)) * 0.35;
-                        }
 
                         let count = 0;
                         const visibleSegments = Math.max(8, Math.min(SNAKE_SEGMENTS - 2, Math.floor(snakeCurrentLength)));
