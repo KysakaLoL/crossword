@@ -1452,17 +1452,14 @@ socket.on('sync_word', (data) => {
     console.log("Применяем ответ от:", sourceName);
     
     const word = quizData[currentStep];
-    if (!word) return;
+    if (!word) return; // Проверь, чтобы эта строка была ВНУТРИ { ... }
 
-    // Логика отрисовки (твои кубики)
     try {
         drawWordOnGrid(word);
     } catch (e) {
         console.error("Ошибка отрисовки кубиков:", e);
     }
 
-    // СИНХРОНИЗАЦИЯ
-    // Если мы сами ввели ответ, отправляем его другим
     if (!isSync) {
         if (typeof socket !== 'undefined' && socket.connected) {
             socket.emit('word_guessed', {
@@ -1473,14 +1470,12 @@ socket.on('sync_word', (data) => {
         }
     }
 
-    // Обновляем интерфейс
     feedback.textContent = `Верно! Отгадал: ${sourceName}`;
     
-    // Авто-переход к следующему вопросу
     setTimeout(() => {
         nextQuestion(); 
     }, 1500);
-}
+} // Убедись, что эта закрывающая скобка на месте!
 
                     function finishGame() {
                         sphere.visible = false;
@@ -1634,29 +1629,30 @@ socket.on('sync_word', (data) => {
                     }
 
                     function animate(now = performance.now()) {
-                        requestAnimationFrame(animate);
-						if (controls) {
-        					controls.update();
-    					}
-                        const delta = Math.min(0.05, (now - (animate.lastTime || now)) / 1000);
-                        animate.lastTime = now;
+    requestAnimationFrame(animate);
+    
+    if (controls) {
+        controls.update(); // Тот самый фикс для движения камеры
+    }
 
-                        updateSnake(delta);
-                        renderSnake();
+    const delta = Math.min(0.05, (now - (animate.lastTime || now)) / 1000);
+    animate.lastTime = now;
 
-                        if (sphere.visible) {
-                            sphere.position.lerp(targetSpherePos, 0.12);
-                        }
+    updateSnake(delta);
+    renderSnake();
 
-                        if (cameraAssist > 0.001) {
-                            camera.position.lerp(desiredCameraPos, Math.min(1, delta * 2.6));
-                            controls.target.lerp(desiredCameraTarget, Math.min(1, delta * 3.1));
-                            cameraAssist = Math.max(0, cameraAssist - delta * 0.26);
-                        }
+    if (sphere.visible) {
+        sphere.position.lerp(targetSpherePos, 0.12);
+    }
 
-                        controls.update();
-                        renderer.render(scene, camera);
-                    }
+    if (cameraAssist > 0.001) {
+        camera.position.lerp(desiredCameraPos, Math.min(1, delta * 2.6));
+        controls.target.lerp(desiredCameraTarget, Math.min(1, delta * 3.1));
+        cameraAssist = Math.max(0, cameraAssist - delta * 0.26);
+    }
+
+    renderer.render(scene, camera);
+}
 
                     function updateSnake(delta) {
                         snakeProgress += delta * SNAKE_SPEED;
