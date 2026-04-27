@@ -1416,32 +1416,19 @@ socket.on('sync_word', (data) => {
                         feedback.className = 'bad';
                     }
 
-                    function applyCorrectAnswer(sourceName) {
-                        const word = quizData[currentStep];
-                        clearFixedMeshesForPath(word.path);
-
-                        word.path.forEach((coord, i) => {
-                            const key = `${coord.x},${coord.z}`;
-                            const mesh = createLetterCube(word.a[i], gridToWorld(coord.x, coord.z, 0), matGood);
-                            fixedLettersMap.set(key, { mesh });
-                            cellStateMap.set(key, 'correct');
-                       	    socket.emit('word_guessed', {
-        step: currentStep,
-        answer: quizData[currentStep].a
-    });
-}
-
-                        refreshTiles();
-                        feedback.textContent = `Верно: ${sourceName}`;
-                        feedback.className = 'good';
-                        if (questionBox.style.display !== 'block') {
-                            openQuestion();
-                        }
-                        answerInput.value = '';
-                        activeLetters.forEach(mesh => scene.remove(mesh));
-                        activeLetters = [];
-                        teacherState.pendingAdvance = true;
-                    }
+                    function applyCorrectAnswer(sourceName, isSync = false) {
+    const word = quizData[currentStep];
+    // ... твой код отрисовки кубиков ...
+    
+    // Проверь это место:
+    if (!isSync) {
+        socket.emit('word_guessed', {
+            step: currentStep,
+            answer: word.a,
+            user: sourceName
+        }); // <- Тут должна быть скобка и точка с запятой
+    } 
+} // <- Тут закрывается сама функция
 
                     function finishGame() {
                         sphere.visible = false;
