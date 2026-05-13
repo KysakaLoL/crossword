@@ -380,7 +380,7 @@
                 <button id="camera-free-btn" type="button" class="ghost">Свободно</button>
             </div>
             <div id="join-link" style="margin-top:10px;"></div>
-            <div id="join-note" style="margin-top:8px;">Ученики подключаются по QR. Если страница открыта как file://, QR покажет ссылку, но для телефонов нужен реальный URL.</div>
+            <div id="join-note" style="margin-top:8px;">Ученики могут подключаются по QR.</div>
             <div id="teacher-scoreboard">
                 <h3>Рейтинг</h3>
                 <div id="score-list"></div>
@@ -433,7 +433,7 @@
     <div id="start-overlay">
         <div id="start-card" class="glass">
             <h1 style="font-size:1.65rem;">Подключение по QR</h1>
-            <div style="margin-top:10px; color:var(--muted); line-height:1.45;">Перед стартом ведущий показывает QR-код. Ученики открывают тот же адрес и попадают в режим ответа.</div>
+            <div style="margin-top:10px; color:var(--muted); line-height:1.45;">Перед стартом ученики могут подключиться к разгадке кроссворда по QR. </div>
             <div id="qr-box"></div>
             <div id="qr-url" style="word-break:break-all; color:#42617d; font-size:0.92rem;"></div>
             <div id="qr-note" style="margin-top:10px; color:var(--muted); font-size:0.92rem;"></div>
@@ -1016,7 +1016,7 @@
                         document.getElementById('qr-url').textContent = url;
                         document.getElementById('qr-note').textContent = location.protocol === 'file:'
                             ? 'Сейчас открыт file://. Для телефонов нужен URL вроде http://...'
-                            : 'Покажите QR на экране перед началом, ученики зайдут прямо в режим ответа.';
+                            : 'Рекомендуется подключать учеников до загрузки кроссворда.';
 
                         const qrBox = document.getElementById('qr-box');
                         qrBox.innerHTML = '';
