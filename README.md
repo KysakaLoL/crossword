@@ -1,5 +1,9 @@
 # Crossword Multiplayer Game
 
+👉 Live site: https://crossword-sw72.onrender.com
+
+---
+
 ## 📌 О проекте
 
 Crossword Multiplayer Game — это образовательная мультиплеерная веб-игра, где пользователи подключаются к одной сессии через QR-код и совместно решают кроссворд в реальном времени.
